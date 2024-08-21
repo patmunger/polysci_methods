@@ -1,5 +1,5 @@
 ---
-layout: home
+layout: default
 ---
 # PolySci Methods Hub
 **Patrick Munger and Muhammed Topcu**
