@@ -29,7 +29,7 @@ description: >-
 github_username: patmunger
 
 # Build settings
-theme: jekyll-theme-minima
+theme: jekyll-theme-minimal
 
 
 
