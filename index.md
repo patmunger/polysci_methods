@@ -4,6 +4,8 @@ layout: home
 # PolySci Methods Hub
 **Patrick Munger and Muhammed Topcu**
 
+![Image generated OpenAI's DALL-E.](/homepage_pic.png)
+
 ### **Welcome to Our Resources Hub!** This site provides material and resources to assist graduate students in Political Science Quantitative Methods courses at Georgia State University with Patrick Munger or Muhammed Topcu serving as Teaching Assistants.  
 
 ## Courses 
