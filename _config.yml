@@ -24,14 +24,12 @@ logo: /homepage_pic.png
 email: pmunger1@gsu.edu
 description: >-
   Welcome to Our Resources Hub! This site provides material and resources to assist graduate students 
-  in Political Science Quantitative Methods courses at Georgia State University TA'ed by Patrick Munger 
-  and Muhammed Topcu.
+  in Political Science Quantitative Methods courses at Georgia State University with Patrick Munger 
+  and Muhammed Topcu serving as TAs.
 github_username: patmunger
 
 # Build settings
-theme: minima
-plugins:
-  - jekyll-feed
+theme: jekyll-theme-minima
 
 
 
