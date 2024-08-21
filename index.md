@@ -1,7 +1,7 @@
 ---
 layout: default
 ---
-![Logo](/img/homepage_pic.png)
+![Logo](/imgs/homepage_pic.png)
 
 ## Courses 
 ### [Introduction to Quantitative Methods (POLS 8805) - Fall 2024](docs/8805_fall24.md)
