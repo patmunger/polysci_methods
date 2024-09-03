@@ -137,7 +137,7 @@ pairs.panels(state_data)
 Another way to test for multicollinearity between predictors in with a Variance Inflation Factor (VIF) test. You are safe from multicollinearity with values below 5. About 5 and there is likely a strong correlation between the predictor and another predictor. As VIF approaches 10 or exceeds 10, concern for multicollinearity becomes greater.
 
 ```{r VIF}
-# Variable inflation factor 
+# Variance inflation factor 
 # (Greater than 5 is an issue, greater than 10 is proof of multicollinearity)
 vif(mRate)
 ```
