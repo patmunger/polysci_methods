@@ -10,7 +10,7 @@ output:
 
 ### Author:
 
-Russ Luke, udated by Ozlem Tuncel (Fall 2022), adapted to Markdown with annotations by Patrick Munger (Fall 2024)
+Russ Luke, updated by Ozlem Tuncel (Fall 2022), adapted to Markdown with annotations by Patrick Munger (Fall 2024)
 
 ## Introduction
 
