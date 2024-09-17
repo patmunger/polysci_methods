@@ -85,6 +85,9 @@ It's good practice to check that the 0,1 ratio isn't above 60/40 or 40/60
 
 ```{r}
 summary(women_data$lfp)
+
+# To use mean() we need a numeric variable. We first change it to character to ensure the values stat at 0 and 1 rather than changing to 1 and 2
+mean(as.numeric(as.character(women_data$lfp)))
 ```
 
 # Logit and probit models
