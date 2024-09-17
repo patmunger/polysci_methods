@@ -33,7 +33,7 @@ set.seed(1234)
 
 To perform logit and probit, we do not need any extra packages, we are going to rely on `glm()` function. However, for *proportional reduction in error*, *likelihood ratio test*, and *wald test* we need packages. Also, if you are going to perform special kinds of logit, then you need additional packages. For instance, for rare events, you need `Zelig` or `relogit`, or for nested logit you need `mlogit`. See these: - [Rare events logit in R](https://gking.harvard.edu/relogit) - [Nested logit in R](https://cran.r-project.org/web/packages/mlogit/index.html)
 
-Next, we are going to upload necessary packages:
+Next, we are going to upload necessary packages. Make sure you have them all installed first. RStudio should give you a notification at the top when you open the script indicating if there are uninstalled packages libraried in the script, with an option to click to install them all. 
 
 ```{r upload_library, message=FALSE, warning=FALSE}
 library(tidyverse) ## Utility tools
