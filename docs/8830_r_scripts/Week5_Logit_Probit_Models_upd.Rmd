@@ -1,0 +1,435 @@
+---
+title: "Logit and Probit Models"
+author:  
+- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu]
+- updated: Patrick Munger, Fall 2024
+date: "2022-08-24"
+output: pdf_document
+urlcolor: blue
+---
+
+# Today's agenda
+
+-   Upload our data, set R, and explore our dataset
+-   Estimate Logit and Probit Models
+-   Conduct goodness of fit tests
+-   Introduce some ways to examine effect sizes
+
+# Preliminaries
+
+Our data for this script will come from the car package, so we will not need to import anything from our local drive. However, it is still good practice to either work within a well organized R project, or check and set your working directory here:
+
+```{r directory, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+getwd() # Check your current working directory
+# setwd() # Set and specify your working directory to the desired folder
+```
+
+Setting seeds is also good practice for reproducibility purposes, and especially for collaborating on assignments. It will not actually affect the results of anything unless you use a fucntion that relies on psuedorandom number generation. Sometimes, however, functions use psuedorandom numbers when we don't realize or think about it. Setting a seed will ensure they same numbers are generated.
+
+```{r set_seed, message=FALSE, warning=FALSE}
+# Specify any integer
+set.seed(1234)
+```
+
+To perform logit and probit, we do not need any extra packages, we are going to rely on `glm()` function. However, for *proportional reduction in error*, *likelihood ratio test*, and *wald test* we need packages. Also, if you are going to perform special kinds of logit, then you need additional packages. For instance, for rare events, you need `Zelig` or `relogit`, or for nested logit you need `mlogit`. See these: - [Rare events logit in R](https://gking.harvard.edu/relogit) - [Nested logit in R](https://cran.r-project.org/web/packages/mlogit/index.html)
+
+Next, we are going to upload necessary packages:
+
+```{r upload_library, message=FALSE, warning=FALSE}
+library(tidyverse) ## Utility tools
+library(lmtest) ## Supplemental and postestimation tests
+library(sandwich) ## Specific for the sandwich version of robust SE calculations
+library(stargazer) ## Tables
+library(car) # Companion to Applied Regression
+library(aod) # For wald.test
+library(stats4) # For BIC
+library(gmodels) # CrossTable function
+library(effects) # For marginal effects plot
+library(margins) # For Predicted Values plot 
+library(sjPlot) # For OR plot
+library(broom)
+require(plyr) # For creating pre function 
+
+
+#if effects does not library properly, I had an issue where the'minqa' dependency package did not install with the effects package. Installing 'minqa' on its own then resinstalling 'effects' should fix this:
+
+#install.packages("minqa)
+#install.packages("effects)
+```
+
+Then, we upload our data. In this class, we are going to use US Women's Labor Force Participation dataset from carData package. Let's upload this data and check variables in the dataset:
+
+```{r upload_data, message=FALSE, warning=FALSE}
+# Import data from car package and check summary stats.
+# This is a data about: U.S. Women’s Labor-Force Participation
+# see more => https://cran.r-project.org/web/packages/carData/carData.pdf
+women_data <- Mroz
+summary(women_data)
+```
+
+Variables: \# lfp: female labor force participation (Yes/No) \# k5: number of children under 5 \# k618: number of children aged 6-18 \# age: respondent age \# wc: respondent college educated (Yes/No) \# hc: husband college educated (Yes/No) \# lwg: log expected wage rate \# inc: family income exclusive of wife's income
+
+# Data manipulation
+
+Instead of yes and no, we are going to change this to zeros and ones - where 0 is our reference group or base category. A “reference group” is a group that we choose to be the reference so that all odds ratios will be a comparison to the reference group. By default, R creates uses the lowest coded group as the reference.
+
+Here "no" responses will be recoded as '0' and "yes" responses will be recoded as '1'. So this means that women not in the workforce will be the reference category in our models.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# Recode 'lfp' variable to 1 for "yes" and 0 for "no"
+women_data$lfp <- factor(women_data$lfp, levels = c("no", "yes"), labels = c(0, 1))
+
+```
+
+It's good practice to check that the 0,1 ratio isn't above 60/40 or 40/60
+
+```{r}
+summary(women_data$lfp)
+```
+
+# Logit and probit models
+
+Note the "family = binomial(link = "logit")" is where logit is specified, where probit is called in the probit models. Here, the first part of the function is very similar to the lm() function. We write our dependent variable and then write our covariates. For binomial logit, we also need to specify the particular family that we are interested in using. The binomial family will default to the "logit" link function, but for clarity, it is helpful to write it out for all models.
+
+```{r}
+# First create logit
+m1 <- glm(lfp ~ k5 + k618, 
+          family = binomial(link = "logit"),
+          data = women_data)
+
+m2 <- glm(lfp ~ k5 + k618 + age + wc + inc, 
+          family = binomial(link = "logit"),
+          data = women_data)
+
+# Then, create logit
+m3 <- glm(lfp ~ k5 + k618, 
+          family = binomial(link = "probit"),
+          data = women_data)
+
+m4 <- glm(lfp ~ k5 + k618 + age + wc + inc, 
+          family = binomial(link = "probit"),
+          data = women_data)
+
+
+
+```
+
+We can use summarize the model results individually
+
+```{r}
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+```
+
+Or we can use stargazer to view them all in a single table. Remember use type = "latex" for code you can copy and paste in latex.
+
+```{r}
+stargazer(m1, m2, m3, m4, type = "text")
+```
+
+In logit/probit, we cannot interpret the coefficients as direct independent effects like we can in OLS. Instead we focus on the directions of the coefficients and their p-values or significance levels.
+
+Magnitude logit and probit coefficients can only be understood by calculating predicted probabilities or marginal/discrete effects. Which we can do by manually calculating, or visualizing. But, before delving into the details of interpretation, I let's first go over a few important tests for model specification and goodness of fit to assess how well our models fit the data.
+
+# Goodness of Fit and Model Specification
+
+## Proportional Reduction in Error
+
+A Proportional Reduction in Error (PRE) test is one way to assess model fit. Essentially, the PRE test assess our model against simply observing the outcome variable, or in other words, against a baseline model with no predictors (a "baseline" or "null" model). This allows us to see how much better our model improves on predicting zeros and ones versus a model that essentially guesses the most frequent outcome every time (null model). The PRE tells us how much our model reduces predictive error versus the null model.
+
+Previously we could use theDAMisc package to easily calculate pre(), but since the package has been taken off CRAN and needs to be installed from an archived version, we can instead create our own function for calculating PRE with code Russ provided:
+
+```{r}
+
+mode_of_model <- function(model_name) {
+  outcome<-model_name$y
+  categories <- unique(outcome)
+  categories[which.max(tabulate(match(outcome, categories)))]
+}
+
+# Write new pre() function
+pre <- function(model_name){
+  if(length(class(model_name))==1){return(cat("\n","Error: Model not Logit or Probit", "\n", "\n"))}
+  if((model_name$family$link!="logit")&(model_name$family$link!="probit")){return(cat("\n", "Error: Model not Logit or Probit", "\n", "\n"))}
+  predict<-ifelse(model_name$fitted.values> 0.5, 1, 0)
+  predict<-as.vector(predict)
+  if(sd(predict)==0){return(cat("\n", "Error: No variation in predicted dependent variable! All values are ", mean(predict), "\n", "\n"))}
+  temp<-as.data.frame(predict)
+  temp$y<-model_name$y
+  temp$correct<-ifelse(temp$predict==temp$y, 1, 0)
+  num_count<-table(temp$correct==1)
+  num_count<-as.numeric(num_count[2])
+  prop_correct<-num_count/length(temp$correct)
+  out<-mode_of_model(model_name)
+  num_mode<-table(model_name$y==out)
+  num_mode<-as.numeric(num_mode[2])
+  prop_mode<-num_mode/length(temp$correct)
+  prop_red_error<-(((prop_correct*100)-(prop_mode*100))/(100-(prop_mode*100)))
+  perc_correct<-prop_correct*100
+  perc_mode<-prop_mode*100
+  perc_red_error<-prop_red_error*100
+  pre_out<-as.data.frame(prop_red_error)
+  names(pre_out)[1] <- 'PRE'
+  cat("\n","  Proportion Correctly Predicted:    ", format(round(prop_correct, 3), nsmall = 3), "\n") 
+  cat("   Proportion Modal Category:         ", format(round(prop_mode, 3), nsmall = 3), "\n")
+  cat("   Proportional Reduction in Error:   ", format(round(prop_red_error, 3), nsmall = 3), "\n", "\n")
+  cat("   Percent Correctly Predicted:       ", format(round(perc_correct, 3), nsmall = 3), "\n") 
+  cat("   Percent Modal Category:            ", format(round(perc_mode, 3), nsmall = 3), "\n")
+  cat("   Percent Reduction in Error:        ", format(round(perc_red_error, 3), nsmall = 3), "\n", "\n")
+  return(pre_out)
+}
+
+## Function for call in Stargazer
+stargazer.pre <- function(model){
+  temp1 <-pre(model)
+  temp2 <-format(round(temp1, 3), nsmall=3) 
+  out <-paste(temp2)
+  return(out)
+}
+```
+
+A PRE statistic takes values between 0 and 1.
+
+-   0 means no reduction in error,
+-   1 means that there is perfect prediction—the error is completely eliminated.
+
+General rule of thumb is that 0 to 0.1 is considered weak, 0.1 to 0.4 moderate, 0.4+ is considered strong.
+
+```{r}
+pre_m1 <- pre(m1)
+pre_m2 <- pre(m2)
+pre_m3 <- pre(m3)
+pre_m4 <- pre(m4)
+
+pre_m1
+pre_m2
+pre_m3
+pre_m4
+```
+
+## Wald Test
+
+Wald $\chi^2$ (Wald Chi-Squared Test) will be a version of $R^2$ or $F-test$ for us. It is going to tell us overall fit of our model. The Wald test is a way to find out if explanatory variables in a model are adding something to the model. Essentially, it is assessing if our coefficients are significantly different from zero.
+
+The null hypothesis is that the coefficients of the explanatory variables is equal to zero. So a significant p-value rejects the null, suggesting that the explanatory variables of the model do significantly explain the outcome.
+
+$H_0$: The coefficients of the model are equal to zero.
+
+$H_A$: The coefficients of the model are not equal to zero.
+
+```{r}
+# Wald Test (from aod package)
+wald.test(b = coef(m1), Sigma = vcov(m1), Terms = 2:length(m1$coefficients))
+wald.test(b = coef(m2), Sigma = vcov(m2), Terms = 2:length(m2$coefficients))
+wald.test(b = coef(m3), Sigma = vcov(m3), Terms = 2:length(m3$coefficients))
+wald.test(b = coef(m4), Sigma = vcov(m4), Terms = 2:length(m4$coefficients))
+```
+
+With terms, we want to start at 2 because 1 refers to the intercept. Read function help page for further detail.
+
+To get this into your output table you can either manually copy and paste the values into your table, or we can use some user generated functions to create a function that does this for you
+
+To call the correct number of stars from the p-value of the Wald test:
+
+```{r}
+wald.test.stars<- function(pvalue){
+  if(pvalue < 0.1 & pvalue >= 0.05){return("*")
+    } else if(pvalue < 0.05 & pvalue >= 0.01){return("**")
+    } else if(pvalue < 0.01){return("***")
+    } else {return(" ")}
+}
+```
+
+Testing the function:
+
+```{r}
+wald.test.stars(0.001)
+wald.test.stars(0.01)
+wald.test.stars(0.02)
+wald.test.stars(0.06)
+wald.test.stars(0.11)
+```
+
+Pulling the chi2 statistic from the wald.test
+
+```{r}
+stargazer.wald.chi<- function(model){
+  require(aod)
+  w1 <- wald.test(b = coef(model), Sigma = vcov(model), Terms = 2:length(model$coefficients))
+  w1chi <- w1$result$chi2[1]
+    return(format(round(w1chi, 3), nsmall=3)) 
+  }
+
+# Testing
+stargazer.wald.chi(m1)
+```
+
+Pulling the significance level from the wald.test
+
+```{r}
+stargazer.wald.sig<- function(model){
+  require(aod)
+  w1 <- wald.test(b = coef(model), Sigma = vcov(model), Terms = 2:length(model$coefficients))
+  w1p <- w1$result$chi2[3]
+  starw1 <- wald.test.stars(w1p)
+  return(starw1)
+}
+
+# Testing
+stargazer.wald.sig(m1)
+```
+
+Putting everything together for stargazer
+
+```{r}
+stargazer.wald.output <- function(model){
+  out<-paste(stargazer.wald.chi(model), stargazer.wald.sig(model))
+  return(out)
+}
+
+# Testing the combined character string for stargazer
+stargazer.wald.output(m1)
+
+### Output table with Wald Chi2 and PRE using our functions ----
+stargazer(m1, m3, 
+          type = "text", 
+          add.lines = list(
+            c("Wald $\\chi^{2}$", stargazer.wald.output(m1), stargazer.wald.output(m3)),
+            c("P.R.E.", round(pre_m1$PRE, 3), round(pre_m3$PRE, 3))
+            )
+          )
+
+stargazer(m1, m2, m3, m4, 
+          type = "text", 
+          add.lines=list(
+            c("Wald $\\chi^{2}$", stargazer.wald.output(m1), stargazer.wald.output(m2),
+              stargazer.wald.output(m3), stargazer.wald.output(m4)),
+            c("P.R.E.", round(pre_m1$PRE, 3), round(pre_m2$PRE, 3), round(pre_m3$PRE, 3), 
+              round(pre_m4$PRE, 3))
+            )
+          )
+```
+
+Notes: add.lines is where we're adding our information - this can be used for many other things add.lines=list(c() lets us add character strings separated by commas to denote different columns otherwise this would all show up in the first column. See [Stargazer's vignette](https://rdrr.io/cran/stargazer/man/stargazer_table_layout_characters.html) for options.
+
+## Likelihood Ratio Test (LR)
+
+A likelihood ratio test compares the goodness of fit of two nested regression models. A nested model is simply one that contains a subset of the predictor variables in the overall regression model.
+
+$(i.e., lrtest(nested, complex))$
+
+To determine if these two models are significantly different, we can perform a likelihood ratio test which uses the following null and alternative hypotheses:
+
+$H_0$: The full model and the nested model fit the data equally well. Thus, you should use the nested model.
+
+$H_A$: The full model fits the data significantly better than the nested model. Thus, you should use the full model.
+
+```{r}
+lrtest(m2, m1)
+lrtest(m4, m3)
+
+m3$coefficients
+m4$coefficients
+
+lrtest(m4, m3)
+```
+
+Here, in both test, we reject the null - which means that the full or complex model fits the data significantly better than our simple model, and we should use the full model. See coefficients for instance for Models 3 and 4 - `k618` variable's sign changes.
+
+## Wald Test for Model Comparison
+
+You can also use Wald test to compare models - which is what we are doing with Likelihood Ratio Test. We can set the Terms argument to specific covariates to examine their influence on the model.
+
+```{r}
+# Wald Test (from aod package)
+summary(m2)
+
+wald.test(b = coef(m2), Sigma = vcov(m2), Terms = 2:2)
+# not statistically significant
+wald.test(b = coef(m2), Sigma = vcov(m2), Terms = 3:3)
+wald.test(b = coef(m2), Sigma = vcov(m2), Terms = 4:4)
+wald.test(b = coef(m2), Sigma = vcov(m2), Terms = 5:5)
+wald.test(b = coef(m2), Sigma = vcov(m2), Terms = 2:3)
+
+```
+
+For instance, we can see that the third covariate (k618) does not add explanatory power to the model worth its inclusion.
+
+# Notes
+
+These goodness of fit tests are meant to assess how well models explain the data, but in applied research, our goal is not necessarily to produce a model that best explains the data. Most of the time, in fact, our goal is to test specific relationships. Thus, just because goodness of fit tests suggest that we should remove a variable or throw out a model, does not necessarily mean that we should. If a variable or model is important to testing our hypotheses, controlling for variables, guiding or theory, or providing some other methodological or substantive utility, we should keep it.
+
+# Examining magnitude
+
+We will cover these topics more later on, but for a quick introduction, let's estimate a logit model with just one predictor (k5: number of children under 5)
+
+```{r}
+simple_model <- glm(lfp ~ k5, data = women_data, family = binomial(link = "logit"))
+summary(simple_model)
+```
+
+The coefficients are log odds, so not directly interpretable. But by exponentiating them (taking their natural logarithm) we can obtain odds ratios, which can be interpreted as the change in odds of the outcome occuring with every one unit change in the predictor. Odds ratio
+
+```{r}
+exp(coef(simple_model))
+# OR > 1 indicates increased occurrence of an event
+# OR < 1 indicates decreased occurrence of an event
+```
+
+Interpretation:
+
+The intercept is the odds ratio when you do not have any kids under 5. The odds ratio of k5 being zero is 1.6. The odds of women being in the labor force when they have ZERO kids under 5 is 1.6 times the odds of the women not being in the labor force.
+
+By exponentiation of the age coefficient, we look at the expected increase in the odds of labor force participation for each unit change in k5. So, one unit increase in the number of kids under 5 lowers the odds of participation by a factor of 0.4 (so by 0.6)
+
+## Odds Ratio tables
+
+Odds ratios are a simple compute. But since they are more interpretable than the raw coefficients, we might also want to collect them for an entire model an even present it in a table. We can do this with stargazer by adding an argument to exponentiate the coefficients.
+
+```{r}
+stargazer(m1, type = "text", apply.coef = exp, ci = TRUE, ci.level = 0.95)
+```
+
+Odds ratio can be tricky to interpret, so we can also look at probabilities (OR/(1 + OR):
+
+```{r}
+# Odds ratio and predicted probabilities
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds/(1 + odds)
+  return(prob)
+}
+
+logit2prob(coef(simple_model))
+```
+
+Interpretation: Probability of participating to labor force market is 61% when there are no kids under 5 (intercept interpretation). However, the probability that a woman participates in labor force is lowered to 29% when they have a kid under 5.
+
+But we cannot tell what happens if you have multiple kids. So, `predict()` function helps us with that.
+
+Predicted probabilities using predict() function:
+
+```{r}
+predict(simple_model, data.frame(k5 = 2), type = "response")
+```
+
+If there are 2 kids under 5, the probability of a women being in the labor force is 22%.
+
+You can also calculate this for multiple cases:
+
+```{r}
+summary(m1)
+predict(m1, data.frame(k5 = 3, k618 = 1), type = "response")
+```
+
+If there is 2 kids under 5 and 1 kid between ages of 6-18, the probability of a women being the labor force is only 10%.
+
+Marginal Effects plots can help us visualize how predicted probabilities change across the values of an indpendent variable
+
+```{r}
+cplot(m2, x = "inc")
+
+plot(Effect(focal.predictors = c("k5"), mod = m2), rug = FALSE, style = "stacked", main = "Effect of having kids under 5 on Probability of labor force participation", ylab = "Probability of labor force participation")
+```
