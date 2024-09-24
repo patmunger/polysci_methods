@@ -1,0 +1,447 @@
+---
+title: "Reliability, Correlations, and Factor Analysis"
+author: 
+- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu]
+date: "2022-08-28"
+output: pdf_document
+urlcolor: blue
+---
+
+# Preliminaries
+
+```{r directory, message=FALSE, warning=FALSE}
+getwd() # Check your current working directory
+# setwd() # Set and specify your working directory to the desired folder
+```
+
+
+```{r set_seed, message=FALSE, warning=FALSE}
+# Specify any integer
+set.seed(1234)
+```
+
+```{r upload_library, message=FALSE, warning=FALSE}
+library(tidyverse) ## Utility tools
+library(lmtest) ## Supplemental and post-estimation tests
+library(sandwich) ## Specific for the sandwich calculation of robust SE calculations
+library(stargazer) ## Tables
+library(haven) ## Importing .dta files
+library(psych) ## Package for factor analysis
+library(psychTools) ## Supplement for psych
+library(pastecs) ## Utility tool
+library(GPArotation) # Further support for psych FA approaches
+library(labelled) # helps with dta labels
+```
+
+Import our data:
+```{r upload_data}
+anes_data <- read_dta("anes_timeseries_cdf.dta")
+
+# List of my variables
+# "VCF0004", # Year
+# "VCF0006", # ID Number
+# "VCF0110", # Education
+# "VCF0112", # Region
+# "VCF0114", # Income
+# "VCF0210", # Labor union feeling thermometer
+# "VCF0213", # Military feeling thermometer
+# "VCF0231", # The federal government feeling thermometer
+# "VCF0310", # Political Attention
+# "VCF0613", # Political efficacy
+# "VCF0703", # Registered and Voted
+# "VCF0849", # Ideology
+# "VCF0867" # View on Affirmative Action
+```
+
+# Cautionary notes before the analysis 
+- In the following script, we are going to undergo different steps:
+  - First, we are going to examine our data, and if necessary we are going to make any necessary data manipulation. 
+  - Second, we are going to closely examine the relationship between our variables. We are going to really on few tests and correlation among these variables. 
+  - Third and lastly, we are going to implement the factor analysis and see how it performed. 
+- We spend only a single lesson on factor analysis, but this approach deserves its own class if you want to master it. This is a very common tool in numerous fields (personality psychology, biology, marketing, management, operations research, finance, and machine learning). It may help to deal with data sets where there are large numbers of observed variables that are thought to reflect a smaller number of underlying/latent variables. In political science, factor analysis is also adopted fairly to explore latent concepts. Today's class gives you some basic tools for factor analysis. 
+
+# Data manipulation
+We have to perform quick data manipulation and cleaning. 
+- First, I decided to change variable names because they do not look informative. 
+- Second, I subset my data to these variables so that I do not have to deal with 1029 variables which will take a lot time when running things. Also, it saves some space. 
+
+```{r}
+# Change variable names with rename(new_name = old_name)
+anes_data <- anes_data %>% 
+  rename(year = VCF0004,
+         id_number = VCF0006,
+         education = VCF0110,
+         region = VCF0112,
+         income = VCF0114, 
+         labor_ft = VCF0210,
+         military_ft = VCF0213,
+         federal_ft = VCF0231,
+         pol_attention = VCF0310,
+         pol_efficacy = VCF0613,
+         reg_voted = VCF0703,
+         ideology = VCF0849,
+         affirmative_view = VCF0867)
+
+myvars <- c("year", "id_number", "education", "region", "income", "labor_ft", 
+            "military_ft", "federal_ft", "pol_attention", "pol_efficacy", 
+            "reg_voted", "ideology", "affirmative_view")
+
+# Select a random year from data 
+anes_2012 <- anes_data %>% 
+  filter(year == 2012)
+
+# Subset our data 
+anes_2012 <- anes_2012[myvars]
+
+# Remove labels from dta file (R cannot process these labels)
+anes_2012 <- remove_labels(anes_2012)  
+```
+
+
+# Summary statistics for each variables
+For every analysis, it is ideal to perform some Exploratory Data Analysis or EDA. Here, I look at variables, get some descriptive information. 
+
+```{r include=FALSE}
+summary(anes_2012$region) # you can do this one by one
+lapply(anes_2012, stat.desc) # or use lapply
+```
+
+# Examine your data closely
+```{r include=FALSE}
+anes_2012 %>% 
+  group_by(education) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(income) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(labor_ft) %>% dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(military_ft) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(federal_ft) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(pol_attention) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(pol_efficacy) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(reg_voted) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(ideology) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(affirmative_view) %>% 
+  dplyr::summarize(Count = n()) 
+```
+
+You might need to alter some values:
+```{r include=FALSE}
+anes_2012 %>% 
+  group_by(pol_attention) %>% 
+  dplyr::summarize(Count = n()) 
+
+# Change NA values
+anes_2012$pol_attention[anes_2012$pol_attention == 9] <- NA
+
+# Check what you did
+anes_2012 %>% 
+  group_by(pol_attention) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% group_by(pol_efficacy) %>% 
+  dplyr::summarize(Count = n()) 
+
+# Change NA values
+anes_2012$pol_efficacy[anes_2012$pol_efficacy == 9] <- NA
+anes_2012$pol_efficacy[anes_2012$pol_efficacy == 3] <- 4
+anes_2012$pol_efficacy[anes_2012$pol_efficacy == 2] <- 3
+anes_2012$pol_efficacy[anes_2012$pol_efficacy == 4] <- 2
+
+# Check what you did
+anes_2012 %>% 
+  group_by(pol_efficacy) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(ideology) %>% 
+  dplyr::summarize(Count = n()) 
+
+# Another data manipulation
+anes_2012$ideology[anes_2012$ideology == 6] <- NA
+anes_2012$ideology[anes_2012$ideology == 3] <- 2
+anes_2012$ideology[anes_2012$ideology == 5] <- 3
+
+# Check what you did
+anes_2012 %>% 
+  group_by(ideology) %>% 
+  dplyr::summarize(Count = n()) 
+
+anes_2012 %>% 
+  group_by(affirmative_view) %>% 
+  dplyr::summarize(Count = n()) 
+
+# Another data manipulation
+anes_2012$affirmative_view[anes_2012$affirmative_view == 8] <- NA
+anes_2012$affirmative_view[anes_2012$affirmative_view == 5] <- 2
+
+# Check what you did
+anes_2012 %>% 
+  group_by(affirmative_view) %>% 
+  dplyr::summarize(Count = n()) 
+
+describe(anes_2012)
+
+# For the analysis, we are going to get rid of year variable 
+anes_2012 <- anes_2012 %>% 
+  select(-year)
+
+```
+
+# Reliability 
+We are going to use some functions from `pscyh` package which allows us to conduct several tests and assess the variables in our data. I highly recommend reading the package vignette and the following website which gives great insights on how to interpret outputs:
+- [psych package vignette](https://cran.r-project.org/web/packages/psych/psych.pdf)
+- [Interpreting alpha function](https://rpubs.com/hauselin/reliabilityanalysis)
+
+Before we conduct a factor analysis, we are interested in whether these variables make sense with each other and are they good measurements. Hence, we are going to use reliability and correlation as key factors here. 
+
+## Cronbach's Alpha
+```{r}
+# Cronbach's Alpha is the measure of the internal consistency of a scale or a related set of scales
+alpha(anes_2012)
+```
+
+As you can see, this function produces several tables and gives us some warnings and suggestions. I recommend looking at `raw_alpha` score which is quite low and negative. This suggests that we have a very weak correlation and we should reverse code some of the variables because they are leading to this negative `raw_alpha` score. 
+
+In Cronbach’s $\alpha$ values bigger than or equal to $0.7$ or $0.8$ indicate good reliability. 
+
+If you look at further, in `Item statistics` part, we can see the correlation between the item and the total score from the scale. For instance, region variable is very weakly correlated and we should probably remove this variable to improve our analysis. 
+
+We can do better. Let's just look at education and income.
+
+```{r}
+small_anes <- anes_2012 %>% 
+  select(education, income) %>% 
+  na.omit()
+```
+
+## Function to calculate Cronbach's alpha
+```{r}
+# Function to calculate Cronbach's alpha
+alpha(small_anes)                         
+```
+
+As we can see, alpha here is decently high at 0.53. 
+However this is a messy dataset by design.
+
+# Pearson's Correlation Coefficient
+
+Primarily two ways; the second of which can tell you if the correlation is statistically significant
+
+```{r}
+cor(anes_2012$labor_ft, anes_2012$military_ft, 
+    method = "pearson", 
+    use = "complete.obs")
+
+cor.test(anes_2012$military_ft, anes_2012$federal_ft,
+         method = "pearson", 
+         use = "complete.obs")
+
+cor.test(anes_2012$labor_ft, anes_2012$federal_ft, 
+         method = "pearson", 
+         use = "complete.obs")
+```
+
+
+We can see a significant and meaningful correlation between the two feeling thermometers here. There is also spearman and kendall versions of this. See `?cor.test` for more information. 
+
+# Factor Analysis
+The data here are ANES data on a variety of factors (see above) with the aim of identifying the latent factor of political ideology. Thermometer ratings of various groups are likely predicting ideology. 
+
+I've also included measures that may predict a latent factor of something approximating political sophistication. This would constitute a confirmatory factor analysis with 2 latent factors.
+
+We're trying to find the latent factor of political ideology. However, this dataset includes a 3 value measure of ideology, which we for obvious reasons cannot use to predict a latent factor which we would normally not have. Thus we need to omit it from the process.
+
+```{r}
+factor_data <- anes_2012 %>% 
+  select(-ideology, -id_number)
+```
+
+The next step is to examine the data to see if it is appropriate for factor analysis; we shouldn't force factor analysis on data that are uncorrelated. 
+
+```{r}
+# Provides a correlation table to peruse
+lowerCor(factor_data) 
+```
+
+## Graphical presentation of relationships; scatterplots, histograms, and correlation ellipses
+```{r}
+pairs.panels(factor_data, pch = '.') 
+```
+
+## Text based visualization of correlation
+```{r}
+cor.plot(factor_data, numbers = TRUE)   
+```
+   
+Prior to the extraction of the factors, several tests should be used to further assess the suitability of the respondent data for factor analysis. These tests include Kaiser-Meyer-Olkin (KMO) Measure of Sampling Adequacy and Bartlett's Test of Sphericity. 
+The KMO index, in particular, is recommended when the cases to variable ratio are less than 1:5. The KMO index ranges from 0 to 1, with 0.50 considered suitable for factor analysis. 
+
+## Kaiser-Meyer-Olkin Measure of Sampling Adequacy
+```{r}
+KMO(factor_data)
+```
+
+We find that KMO results in region and military_ft lower than 0.5. This indicates a lack of appropriateness for inclusion in the factor analysis. You can see the reason for this in the correlation plot: these variables are correlated at low levels with all other variables. That said, the 0.5 level is not a hard and fast rule. Especially as the KMO statistic is primarily for small-n samples. The decision to include military_ft should thus be a theoretical decision.
+
+## Scree plot
+```{r}
+scree(factor_data[, 1:10])
+```
+
+PC means principal components FA means factor axis extraction. Screeplot allows us to see the eigenvalues for the number of factors # that we may select. We want eigenvalues above 1. This is largely for exploratory factor analysis, and thus not important for purposes here, but good to look at nonetheless. Most scree plots look broadly similar in shape, starting high on the left, falling rather quickly, and then flattening out at some point. This is because the first component usually explains much of the variability, the next few components explain a moderate amount, and the latter components only explain a small fraction of the overall variability. The scree plot criterion looks for the “elbow” in the curve and selects all components just before the line flattens out.
+
+## Bartlett's Test of Sphericity
+```{r}
+cortest.bartlett(as.matrix(factor_data, force = TRUE), n = 5914) 
+```
+   
+The Bartlett's Test of Sphericity should be significant (p<.05) for factor analysis to be suitable.
+
+Bartlett's Test of Sphericity calls for a matrix, but generally the data.frame will work. This is analyzing all variables in the data that you provide, and tells you if the data.frame as a whole is suitable for factor analysis. Rejecting the null hypothesis means that this data.frame is suitable for FA.
+
+# Performing the Factor Analysis
+
+*CAUTIONARY NOTE*
+
+The `industry standard` is to not combine measures into either additive or FA approaches without higher correlations than observed here - generally above 0.7 is accepted without question, and between 0.5 to 0.7 requires an explanation. Below 0.5 you'll run into issues with reviewers.
+
+Let's do factor analysis:
+
+```{r}
+# Setting an object as the number of observations
+n <- as.numeric(nrow(factor_data))           
+
+# Creating the factor analysis object
+f1 <- fa(factor_data, 
+         nfactors = 2, 
+         n.obs = n, 
+         fm = "pa", rotate = "varimax", impute = "mean")
+```
+
+Using the principal factor solution factoring method (fm = "pa") with the varimax version of orthogonal rotation and imputing missing values with the mean option. See `?fa()` for more options on each of these elements.
+
+From the perspective of individuals measured on the variables, varimax seeks a basis that most economically represents each individual—that is, each individual can be well described by a linear combination of only a few basis functions.
+
+Factor loading is basically the correlation coefficient for the variable and factor. Factor loading shows the variance explained by the variable on that particular factor.
+
+```{r}
+f1$loadings # Quick call to look at the factor loadings on each variable
+fa.diagram(f1) # Visual representation of the factor loadings
+```
+
+*NOTE*
+`military_ft` and `region` are not used, and this is represented in the diagram. HOWEVER, `pol_efficacy` is used in both which is why the diagram doesn't plot a line. Given the lack of importance of `military_ft` and `region`, we can rerun the above code with those variables excluded.
+
+```{r}
+factor_data <-factor_data %>% 
+  select(-military_ft, -region)
+
+lowerCor(factor_data)                      
+pairs.panels(factor_data,pch='.')          
+cor.plot(factor_data, numbers = TRUE)      
+
+KMO(factor_data) # Note the absence of any MSA under 0.5
+cortest.bartlett(as.matrix(factor_data, force = TRUE)) 
+
+n <- as.numeric(nrow(factor_data))           
+
+f2 <- fa(factor_data, nfactors = 2, n.obs=n, 
+         fm = "pa", rotate = "varimax", impute = "mean") 
+f2$loadings 
+fa.diagram(f2) 
+```
+
+
+## Visualization of how individual variables are `contributing' to each factor          
+```{r}
+cor.plot(f2)                                   
+
+factor1 <- f2$scores[, c(1)] # Assigning factor scores to objects for use, if wanted
+factor2 <- f2$scores[, c(2)]
+```
+
+
+Binding the ideology measure and predicted factors to see how we did
+```{r}
+ols_data <- cbind(anes_2012[11], f2$scores) 
+attach(ols_data)
+```
+
+
+## Labeling the data
+If your plot has been working in the past and is now throwing the invalid graphics state error, try resetting the graphics device by calling `dev.off()`. 
+
+```{r}
+head(ols_data)
+names(ols_data) <- c("Ideology", "Factor 1", "Factor 2")
+
+# dev.off()
+cor.plot(ols_data, numbers = TRUE)
+# dev.off()
+cor.plot(anes_2012, numbers = TRUE)
+
+ols_data <- na.omit(ols_data) # Omitting NA's for cleanliness
+```
+
+Run the model:
+```{r}
+m_OLS <- glm(ideology ~ PA1 + PA2, family = "gaussian", data = ols_data) # Creating the model
+summary(m_OLS)
+bptest(m_OLS) # Testing for heteroskedasticity
+coeftest(m_OLS, vcov = vcovHC(m_OLS, "HC3")) # Results with Robust standard errors
+```
+
+We reject the null hypothesis in Breusch-Pagan test. We have sufficient evidence to say that heteroscedasticity is present in the regression model.
+
+Not bad given the limited information used to estimate ideology. Important to note the magnitude of the coefficients here: Our ideology factor will maximally predict produce a change in ideology almost 2 points, or 66% of the scale - not bad
+
+Lets check what we would've seen if we just used the individual components that we theoretically identified as significant
+
+```{r}
+m_check <- glm(ideology ~ labor_ft + military_ft + federal_ft + affirmative_view, 
+               family = "gaussian", 
+               data = anes_2012)
+
+stargazer(m_check, 
+          type = "text")
+
+bptest(m_check)
+coeftest(m_check, vcov = vcovHC(m_check, "HC3"))
+```
+
+All significant, but minute magnitudes, even where taking into account the 0-100 measurement of each.
+
+It is important to note that ideology here is an ordinal variable, thus ordinal logit is a better choice for unbiased estimates: 
+
+```{r}
+require(MASS) # For quick ologit 
+
+m_ologit <- polr(as.factor(ideology) ~ PA1 + PA2, 
+                 data = ols_data)
+summary(m_ologit)
+```
+
