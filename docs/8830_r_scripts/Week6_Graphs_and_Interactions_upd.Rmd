@@ -397,11 +397,11 @@ plot_model(m5,
        title = "Predicted Probabilities of Respondent Casting Conservative Vote, \n at Levels of Perceived Household and National Economic Health")
 ```
 
-I also use `ggeffects` package.
+We can also use `ggeffects` package.
 
 ```{r}
 library(ggeffects)
-p <- ggpredict(m5, c("economic.cond.household", "economic.cond.national[1, 3, 4]"))
+p <- ggpredict(m5, c("economic.cond.household", "economic.cond.national[1, 3, 5]"))
 plot(p) + theme_bw()
 
 ```
