@@ -177,7 +177,7 @@ graphs_data$extremist <- as.numeric(graphs_data$extremist)
 
 ## Write PRE function
 
-```{r}
+```{r include=FALSE}
 mode_of_model <- function(model_name) {
   outcome<-model_name$y
   categories <- unique(outcome)
@@ -231,7 +231,7 @@ stargazer.pre <- function(model){
 
 In order to create coefficient plots, we first create few toy models.
 
-```{r include=FALSE}
+```{r}
 # A couple of toy models to play with
 m1 <- glm(democrat ~ income + education + nonwhite + male, 
           data = graphs_data, 
