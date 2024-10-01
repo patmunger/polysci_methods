@@ -1,0 +1,528 @@
+---
+title: "Graphs and Interactions"
+author:  
+- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu]
+- Updated by Patrick Munger^[Georgia State University, otuncelgurlek1@gsu.edu]
+date: "Fall 2023"
+output: pdf_document
+urlcolor: blue
+---
+
+# Today's agenda
+
+1.  Import ANES data and recode some variables
+3.  Run some toy models
+4.  Four different plots (coefficient plots, interaction, predicted probability plot)
+
+# Preliminaries
+
+```{r directory, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+getwd() # Check your current working directory
+# setwd() # Set and specify your working directory to the desired folder
+```
+
+```{r set_seed, message=FALSE, warning=FALSE}
+# Specify any integer
+set.seed(1234)
+```
+
+```{r upload_library, message=FALSE, warning=FALSE}
+library(tidyverse) # Utility tools
+library(lmtest) # Supplemental and postestimation tests
+library(sandwich) # Specific for the sandwich version of robust SE calculations
+library(stargazer) # Tables
+library(car) # Companion to Applied Regression
+library(carData) # Supplemental Data
+library(aod) # For wald.test
+library(stats4) # For BIC
+library(haven) # Import from Stata
+library(gmodels) # Crosstabs
+library(labelled) # Dealing with the Imported Stata labels
+library(margins) # Fun Graphs
+library(jtools) # Fun Graphs
+library(ggstance) # Fun Graphs tools
+library(broom.mixed) # Fun Graphs tools
+library(Rcpp) # Fun Graphs tools
+library(MASS) # For polr
+library(sjPlot) # Interaction graphs
+library(sjmisc) # Interaction graphs
+library(dotwhisker) # DW Plot
+#library(DAMisc) # pre function - DAMisc no longer on CRAN so requires installing an archived version. Alternatively, we will create our own pre() function, as we did in the week 4 script. 
+```
+
+Here we upload our data. In today's exercise, we are using ANES data. Since the data is saved in Rdata format, we can use load() to easily import it. Then we will select and rename the variables we want to model. 
+
+```{r include=FALSE}
+load("anes2000.Rdata")
+anes2000 <- remove_labels(anes2000)
+
+# Variables in ANES data
+# "VCF0004", # Year
+# "VCF0006", # ID Number
+# "VCF0110", # Education
+# "VCF0112", # Region
+# "VCF0114", # Income
+# "VCF0210", # Labor union feeling thermometer
+# "VCF0213", # Military feeling thermometer
+# "VCF0231", # The federal government feeling thermometer
+# "VCF0310", # Political Attention
+# "VCF0613", # Political efficacy
+# "VCF0703", # Registered and Voted
+# "VCF0849", # Ideology
+# "VCF0867" # View on Affirmative Action
+
+# Subset data to use for graphs 
+graphs_data <- anes2000 %>% 
+  rename(id_number = VCF0006,
+         nonwhite = VCF0105a,
+         male = VCF0104,
+         education = VCF0110,
+         income = VCF0114,
+         democrat = VCF0301,
+         extremist = VCF0803) %>% 
+ dplyr::select(id_number, nonwhite, male, education, income, democrat, extremist)
+
+```
+
+# Data manipulation
+
+Here we re-code a few variables, excluding non-responses or 'don't knows' and restructuring a a few variables into different types. 
+
+```{r include=FALSE}
+# Non-white variable (to binary variable)
+CrossTable(graphs_data$nonwhite)
+
+# Make changes
+graphs_data$nonwhite <- replace(graphs_data$nonwhite, graphs_data$nonwhite == 9, NA)
+graphs_data$nonwhite <- replace(graphs_data$nonwhite, graphs_data$nonwhite == 1, 0)
+graphs_data$nonwhite <- replace(graphs_data$nonwhite, graphs_data$nonwhite == 2, 1)
+graphs_data$nonwhite <- replace(graphs_data$nonwhite, graphs_data$nonwhite == 3, 1)
+graphs_data$nonwhite <- replace(graphs_data$nonwhite, graphs_data$nonwhite == 4, 1)
+graphs_data$nonwhite <- replace(graphs_data$nonwhite, graphs_data$nonwhite == 5, 1)
+graphs_data$nonwhite <- replace(graphs_data$nonwhite, graphs_data$nonwhite == 6, 1)
+
+# Check what you did
+CrossTable(graphs_data$nonwhite) 
+
+# Male variable
+CrossTable(graphs_data$male) 
+
+# Make changes
+graphs_data$male <- replace(graphs_data$male, graphs_data$male == 2, 0)
+
+# Check what you did
+CrossTable(graphs_data$male) 
+
+# Education variable
+CrossTable(graphs_data$education) 
+
+# Make changes
+graphs_data$education <- replace(graphs_data$education, graphs_data$education == 0, NA)
+
+# Check what you did
+CrossTable(graphs_data$education)
+
+# Income variable
+CrossTable(graphs_data$income) 
+
+# Make changes
+graphs_data$income <- replace(graphs_data$income, graphs_data$income == 0, NA)
+
+# Check what you did
+CrossTable(graphs_data$income) 
+
+# Democrat vairable
+CrossTable(graphs_data$democrat) 
+graphs_data$democrat <- replace(graphs_data$democrat, graphs_data$democrat == 0, NA)
+graphs_data$democrat <- replace(graphs_data$democrat, graphs_data$democrat == 4, NA)
+graphs_data$democrat <- replace(graphs_data$democrat, graphs_data$democrat == 2, 1)
+graphs_data$democrat <- replace(graphs_data$democrat, graphs_data$democrat == 3, 1)
+graphs_data$democrat <- replace(graphs_data$democrat, graphs_data$democrat == 5, 0)
+graphs_data$democrat <- replace(graphs_data$democrat, graphs_data$democrat == 6, 0)
+graphs_data$democrat <- replace(graphs_data$democrat, graphs_data$democrat == 7, 0)
+CrossTable(graphs_data$democrat) 
+
+# Coding an ordinal variable to indicate the strength of partisanship
+# Don't knows/haven't thought about it and independents are least extreme
+# strong partisans are most extreme
+# Doesn't make a lot of sense for practical use, especially coding don't knows 
+# as a meaningful response, but fun for a teaching example
+
+# Extremist variable (1 to 4 - 4 being more extremist)
+CrossTable(graphs_data$extremist) 
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 0, NA)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 1, 45)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 7, 45)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 6, 35)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 2, 35)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 5, 25)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 3, 25)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 4, 15)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 9, 15)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 45, 4)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 35, 3)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 25, 2)
+graphs_data$extremist <- replace(graphs_data$extremist, graphs_data$extremist == 15, 1)
+CrossTable(graphs_data$extremist) 
+
+# Convert to numeric class
+graphs_data$nonwhite <- as.numeric(graphs_data$nonwhite)
+graphs_data$male <- as.numeric(graphs_data$male)
+graphs_data$education <- as.numeric(graphs_data$education)
+graphs_data$income <- as.numeric(graphs_data$income)
+graphs_data$democrat <- as.numeric(graphs_data$democrat)
+graphs_data$extremist <- as.numeric(graphs_data$extremist)
+
+```
+
+## Write PRE function
+
+```{r}
+mode_of_model <- function(model_name) {
+  outcome<-model_name$y
+  categories <- unique(outcome)
+  categories[which.max(tabulate(match(outcome, categories)))]
+}
+
+# Write new pre() function
+pre <- function(model_name){
+  if(length(class(model_name))==1){return(cat("\n","Error: Model not Logit or Probit", "\n", "\n"))}
+  if((model_name$family$link!="logit")&(model_name$family$link!="probit")){return(cat("\n", "Error: Model not Logit or Probit", "\n", "\n"))}
+  predict<-ifelse(model_name$fitted.values> 0.5, 1, 0)
+  predict<-as.vector(predict)
+  if(sd(predict)==0){return(cat("\n", "Error: No variation in predicted dependent variable! All values are ", mean(predict), "\n", "\n"))}
+  temp<-as.data.frame(predict)
+  temp$y<-model_name$y
+  temp$correct<-ifelse(temp$predict==temp$y, 1, 0)
+  num_count<-table(temp$correct==1)
+  num_count<-as.numeric(num_count[2])
+  prop_correct<-num_count/length(temp$correct)
+  out<-mode_of_model(model_name)
+  num_mode<-table(model_name$y==out)
+  num_mode<-as.numeric(num_mode[2])
+  prop_mode<-num_mode/length(temp$correct)
+  prop_red_error<-(((prop_correct*100)-(prop_mode*100))/(100-(prop_mode*100)))
+  perc_correct<-prop_correct*100
+  perc_mode<-prop_mode*100
+  perc_red_error<-prop_red_error*100
+  pre_out<-as.data.frame(prop_red_error)
+  names(pre_out)[1] <- 'PRE'
+  cat("\n","  Proportion Correctly Predicted:    ", format(round(prop_correct, 3), nsmall = 3), "\n") 
+  cat("   Proportion Modal Category:         ", format(round(prop_mode, 3), nsmall = 3), "\n")
+  cat("   Proportional Reduction in Error:   ", format(round(prop_red_error, 3), nsmall = 3), "\n", "\n")
+  cat("   Percent Correctly Predicted:       ", format(round(perc_correct, 3), nsmall = 3), "\n") 
+  cat("   Percent Modal Category:            ", format(round(perc_mode, 3), nsmall = 3), "\n")
+  cat("   Percent Reduction in Error:        ", format(round(perc_red_error, 3), nsmall = 3), "\n", "\n")
+  return(pre_out)
+}
+
+## Function for call in Stargazer
+stargazer.pre <- function(model){
+  temp1 <-pre(model)
+  temp2 <-format(round(temp1, 3), nsmall=3) 
+  out <-paste(temp2)
+  return(out)
+}
+```
+
+# Coefficient Plots
+
+## Toy Models
+
+In order to create coefficient plots, we first create few toy models.
+
+```{r include=FALSE}
+# A couple of toy models to play with
+m1 <- glm(democrat ~ income + education + nonwhite + male, 
+          data = graphs_data, 
+          family = "binomial")
+
+m2 <- glm(democrat ~ extremist + income + education + nonwhite + male, 
+          data = graphs_data, 
+          family = "binomial")
+
+# Let's check our models
+stargazer(m1, m2, type = "text")
+
+# Proportional Reductions in Error
+pre_m1 <- pre(m1)
+pre_m2 <- pre(m2)
+
+# Let's make a more complex table
+wald.test.stars <- function(pvalue){
+  if(pvalue <0.1 & pvalue >= 0.05){return("*")
+  } else if(pvalue < 0.05 & pvalue >= 0.01){return("**")
+  } else if(pvalue<0.01){return("***")
+  } else {return(" ")}
+}
+
+stargazer.wald.chi <- function(model){
+  require(aod)
+  w1 <- wald.test(b = coef(model), Sigma = vcov(model), Terms = 2:length(model$coefficients))
+  w1chi<-w1$result$chi2[1]
+  return(format(round(w1chi, 3), nsmall=3)) 
+}
+
+stargazer.wald.sig <- function(model){
+  require(aod)
+  w1 <- wald.test(b = coef(model), Sigma = vcov(model), Terms = 2:length(model$coefficients))
+  w1p <- w1$result$chi2[3]
+  starw1 <- wald.test.stars(w1p)
+  return(starw1)
+}
+
+stargazer.wald.output <-function(model){
+  out <- paste(stargazer.wald.chi(model), stargazer.wald.sig(model))
+  return(out)
+}
+
+stargazer(m1, m2, 
+          type = "text",
+          add.lines=list(
+            c("Wald $\\chi^{2}$", stargazer.wald.output(m1), stargazer.wald.output(m2)), 
+            c("P.R.E.", round(pre_m1$PRE, 3), round(pre_m2$PRE, 3))
+            )
+          )
+```
+
+## Continuous DV and IV - Coefficient Plot
+
+In here, Russ gave an example of coefficient plot using `plot_summs()` function from `jtools` package. This is a very useful function.
+
+There are, however, alternatives as well. Most common package out there, and I also like to use this one, is `dotwhisker` package. - [Dotwhisker package](https://cran.r-project.org/web/packages/dotwhisker/vignettes/dotwhisker-vignette.html)
+
+```{r}
+# Let's make a coefficients plot (becoming very popular way to show your results)
+plot_summs(m1, m2, 
+                 scale=TRUE, 
+                 coefs = c("Income"="income", 
+                           "Education"="education", 
+                           "Person of Color" = "nonwhite", 
+                           "Male"="male",
+                           "Political Extremism" = "extremist")) + 
+  ggtitle("Effect of Demographics & Political Extremism \n on Likelihood of Democrat Partisan Identification") +
+  xlab("Logit Coefficent Estimates")
+```
+
+Using the dotwhisker package:
+
+```{r}
+dwplot(list(m1, m2)) +
+  labs(x = "Logit Coefficient Estimates", y = "Variables", 
+       title = "Predicting Party Preference, Logit and Probit Models") +
+  theme_bw() +
+  geom_vline(xintercept = 0, colour = "red", linetype = 2)
+```
+
+## What if our independent variable is categorical?
+
+```{r}
+## Example from carData package ----
+# https://cran.r-project.org/web/packages/carData/carData.pdf
+
+# Let's try another data for visualization - Salaries for Professors data
+
+# Upload data
+salaries_data <- Salaries 
+
+# OLS model and heteroskedasticity test - using lm()
+m3 <- lm(salary ~. , data = salaries_data)
+bptest(m3)
+
+cov_m3 <- vcovHC(m3, method = "HC3")
+rob_m3 <- sqrt(diag(cov_m3))
+
+# OLS model and heteroskedasticity test - using glm()
+m4 <- glm(salary ~. , 
+          data = salaries_data, 
+          family="gaussian")
+bptest(m4)
+
+cov_m4<-vcovHC(m4, method = "HC3")
+rob_m4<-sqrt(diag(cov_m4))
+
+# Let's make a table
+stargazer(m3, m4, 
+          type = "text",
+          se=(list(rob_m3, rob_m4)))
+```
+
+Coefficient plot for continuous DV (Salary) and categorical IV (Rank):
+
+```{r}
+# Coefficient plot using jtools function
+effect_plot(m3, 
+            pred = rank, interval = TRUE, plot.points = FALSE, robust = TRUE,
+            point.alpha = c("red"), int.type = "confidence",
+            cat.interval.geom = c("linerange"),
+            data = salaries_data,
+            main.title = "Effect of Professor Rank on Salary") +
+  xlab("Rank") +
+  ylab("Salary")
+```
+
+# What if we have an interaction?
+
+## Example data from British Election Panel Study
+Info on variables found here: https://rdrr.io/cran/carData/man/BEPS.html
+
+```{r}
+# Upload data
+BEPS_data <- carData::BEPS
+remove_val_labels(BEPS_data)
+BEPS_data$voteCon <- ifelse(BEPS_data$vote == "Conservative", 1, 0)
+
+# Assessment of current national economic conditions, 1 to 5.
+# Assessment of current household economic conditions, 1 to 5.
+# vote Party choice: Conservative, Labour, or Liberal Democrat
+m5 <- glm(voteCon ~ economic.cond.national*economic.cond.household + age +  Europe, 
+          data = BEPS_data, 
+          family = "binomial")
+summary(m5)
+```
+
+# Plotting interactions
+
+We could plot all values of national economic condition, or just these three values. term option helps us to pick predicted values (marginal effects).
+
+```{r}
+plot_model(m5, 
+           type = "pred", 
+           terms = c("economic.cond.household", "economic.cond.national[1,3,5]")) +
+  scale_fill_grey(start = 0.6, end = 0.1) + 
+  scale_color_grey(start = 0.6, end = 0.1) +
+  labs(x = "Perception of Household Economic Health", 
+       y = "Predicted Probability of Voting Conservative",
+       colour = "Perception \n of National \n Economic \n Health",
+       title = "Predicted Probabilities of Respondent Casting Conservative Vote, \n at Levels of Perceived Household and National Economic Health")
+```
+
+I also use `ggeffects` package.
+
+```{r}
+library(ggeffects)
+p <- ggpredict(m5, c("economic.cond.household", "economic.cond.national[1, 3, 4]"))
+plot(p) + theme_bw()
+
+```
+
+# Predicted probability plots
+
+## Example from Minneapolis Police Department 2017 Stop Data
+
+```{r}
+# Upload data
+minneapolis_data <- carData::MplsStops
+
+# Data manipulation
+CrossTable(minneapolis_data$race)
+
+# Quick probit
+summary(glm(vehicleSearch ~ race*gender, 
+            data = minneapolis_data, 
+            family = binomial(link="probit")))
+
+# Data manipulation continue
+minneapolis_data$black <- ifelse(minneapolis_data$race == "Black", 1, 0)
+minneapolis_data$male <- ifelse(minneapolis_data$gender == "Male", 1, 0)
+
+# Let's check the same model with manipulated variables
+m6 <- glm(vehicleSearch ~ black*male, 
+          data = minneapolis_data, 
+          family = binomial(link="probit"))
+
+summary(m6)
+str(minneapolis_data)
+
+```
+
+# Margins
+
+In “marginal effects,” we refer to the effect of a tiny (marginal) change in the regressor on the outcome. This is a slope, or derivative. In “marginal means,” we refer to the process of marginalizing across rows of a prediction grid. This is an average, or integral
+
+Great source for explaining what margins does, [package vignette](https://cran.r-project.org/web/packages/margins/vignettes/Introduction.html#Motivation). In this margins command, we give the model name, variables, and an option which calculates the marginal effects at specified values. The default setting of the margins is to obtain average marginal effects (AMEs).
+
+Just looking at AMEs doesn't tell much, so we often look at specific representative values. But often, averages can obscure differences in effects across cases. We are not examining first differences, but visit this source for further information: [First-difference](https://data.library.virginia.edu/a-beginners-guide-to-marginal-effects/)
+
+```{r}
+# Let's look at margins in this model
+margins_m6 <- margins(m6, at = list(black = 0:1, male = 0:1))
+
+summary(margins_m6)
+# AME == Average marginal effects 
+```
+
+Let's examine how AME changes across different values of our variables. For instance, when Black is zero, and Male is 1, the probability of vehicle search is 6%, but when Male and Black is one, the probability of vehicle search is 12%.
+
+NOTE: I am not sure why black zero male zero and male zero black zero cases give different AMEs. Maybe this is about taking the partial derivative of these variables.
+
+# Predicted probability plots
+
+The effect of one variable might be allowed to vary on another variable.
+
+```{r}
+cplot(m6, 
+      x = "black", 
+      main = "Predicted Probability of Car \n Search Based on Race", 
+      xlab = "Race")
+```
+
+As we see, the predicted value of vehicle search increases, as race variable switches from zero (non-black) to one (black).
+
+Same plot when male variable is zero:
+
+```{r}
+cplot(m6, 
+      x = "black", 
+      data = minneapolis_data[minneapolis_data[["male"]]==0,], 
+      xlim = c(0,1), ylim = c(0, 0.15), 
+      xlab = "Race")
+```
+
+Same plot when male variable is one:
+
+```{r}
+cplot(m6, 
+      x = "black", 
+      data = minneapolis_data[minneapolis_data[["male"]]==1,],
+      main = "Predicted Probability of Car \n Search Based on Race and Gender")
+```
+
+In order to make predicted probability plot in ggplot we need the following
+
+```{r}
+pd1 <- cplot(m6, x="black", 
+             data=minneapolis_data[minneapolis_data[["male"]]==0,])
+
+pd2 <- cplot(m6, x="black", 
+             data=minneapolis_data[minneapolis_data[["male"]]==1,])
+
+ggplot(pd1, aes(x = xvals)) + 
+  geom_line(aes(y = yvals)) +
+  geom_line(aes(y = upper), linetype = 2) +
+  geom_line(aes(y = lower), linetype = 2) +
+  geom_line(data = pd2, aes(y=yvals), color = "red") + 
+  geom_line(data = pd2, aes(y=upper), linetype = 2, color = "red") + 
+  geom_line(data = pd2, aes(y=lower), linetype = 2, color = "red") +
+  labs(x = "Race",
+       y = "Predicted Probability of Car Search",
+       title = "Predicted Probability of Car Search by Race and Gender") +
+  xlim(0,1) + ylim(0,.15) + 
+  scale_x_continuous(breaks = c(0,1))
+```
+
+We could also plot AME in ggplot as well:
+
+```{r}
+pd3 <- cplot(m6, "black", "male", 
+             what = "effect", draw = FALSE)
+
+ggplot(pd3, aes(x = xvals)) + 
+  geom_line(aes(y = yvals)) +
+  geom_line(aes(y = upper), linetype = 2) +
+  geom_line(aes(y = lower), linetype = 2) +
+  geom_hline(yintercept = 0) +
+  labs(x = "Race",
+       y = "AME of Gender",
+       title = "AME of Gender on Car Search by Race") 
+```
