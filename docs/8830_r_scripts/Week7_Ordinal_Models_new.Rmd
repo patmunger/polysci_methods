@@ -149,7 +149,7 @@ By default `sjPlot` will exponentiate the coefficients into odds ratios. To get 
 ```{r}
 library(sjPlot)
 # Create a table with both coefficients and threshold estimates
-tab_model(world_values_clm, show.se = TRUE, show.ci = FALSE)
+tab_model(world_values_clm, transform = NULL)
 ```
 
 The threshold coefficients for variables violating the proportional odds assumption adjust the location of the cutpoints for specific levels of the IVs. For instance:
