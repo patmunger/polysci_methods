@@ -154,9 +154,9 @@ tab_model(world_values_clm, transform = NULL)
 
 The threshold coefficients for variables violating the proportional odds assumption adjust the location of the cutpoints for specific levels of the IVs. For instance:
 
--   The statistically significant and positive log odds for `Too Little|About Right.religionyes` (-0.10) indicates that the cutpoint separating "Too Little" and "About Right" shifts down for people who identify with a religion. *From What I understand*, this means religious people are more likely to perceive poverty as "About Right" rather than "Too Little" compared to people without religious affiliation.
+- The statistically significant and negative log odds for About Right|Too Much.religionyes (-0.29) indicates that the cutpoint separating "Too Little" and "About Right" shifts down for people who identify with a religion. From What I understand, this means religious people are more likely to perceive poverty as "Too Much" rather than "About Right" compared to people without religious affiliation.
 
--   The statistically significant and negative log odds for `About Right|Too Much.countryNorway` (0.12) indicates that the cutpoint separating "About Right" and "Too Much" shifts up for Norwegians as apposed to the baseline Australians category. This means Norwegians are less likely to move from "About Right" to "Too Much\* as compared to Australians.
+- The statistically significant and positive log odds for About Right|Too Much.countryNorway (1.79) indicates that the cutpoint separating "About Right" and "Too Much" shifts up for Norwegians as opposed to the baseline Australians category. This means Norwegians are less likely to move from "About Right" to "Too Much* as compared to Australians.
 
 ### Generalized Ologit
 
