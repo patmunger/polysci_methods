@@ -1,3 +1,9 @@
+library(tidyverse)
+library(mlogit)
+library(dfidx)
+library(car)
+library(stargazer)
+
 british_election <- carData::BEPS # BEPS: British Election Panel Study
 
 british_election$ID <- seq.int(nrow(british_election))
