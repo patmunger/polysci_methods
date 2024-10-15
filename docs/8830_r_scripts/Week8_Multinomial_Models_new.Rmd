@@ -336,10 +336,10 @@ summary(mlogit_model)
 We can maunally set the `reflevel` within the `mlogit` syntax:
 
 ```{r}
-mlogit_model_U <- mlogit(vote ~ 0 | age + sex + income | 0, 
-                  data = idxData, reflevel = "U")
+mlogit_model_Y <- mlogit(vote ~ 0 | age + sex + income | 0, 
+                  data = idxData, reflevel = "Y")
 
-summary(mlogit_model_U)
+summary(mlogit_model_Y)
 ```
 
 ## Hausman-McFadden test for IIA
@@ -347,21 +347,63 @@ summary(mlogit_model_U)
 First we will need to estimate a restricted model that excludes one vote choice category. Let's exclude the 'A' category (abstain), leaving 'U' as the reference.
 
 ```{r}
-mlogit_model_no_A <- mlogit(vote ~ 0 | age + sex + income | 0, 
-                  data = idxData, reflevel = "U", alt.subset = c("Y", "N", "U"))
+mlogit_model_Y_noA <- mlogit(vote ~ 0 | age + sex + income | 0, 
+                  data = idxData, reflevel = "Y", alt.subset = c("Y", "N", "U"))
 
-summary(mlogit_model_no_A)
+summary(mlogit_model_Y_noA)
 ```
 
 Now we can conduct the Hausman-McFadden Test:
 
 ```{r}
 # Perform the Hausman-McFadden test
-hmftest(mlogit_model_U, mlogit_model_no_A)
+hmftest(mlogit_model_Y, mlogit_model_Y_noA)
 
 ```
 
 The null hypothesis is that the IIA assumption is met.
+
+Let's specify another model which, rather than removing the "A" category, instead combines "A" and "U" into a single category. This will require manipulating the original dataset, as a combinition of cattegories cannot me specified within the `mlogit()` estimation. 
+
+Note, this also presents issues for the Hausman test, as models estimated from different datasets will result in a "non-conformadble arrays" error. However, we can still compare model results.
+
+```{r}
+# Manipulate vote variable in original dataset to lum A and U into "AU" category
+Chile_new <- Chile %>%
+  mutate(vote = as.character(vote)) %>%
+  mutate(vote = ifelse(vote %in% c("A", "U"), "AU", vote))
+
+# Check that it worked
+table(Chile_new$vote)
+
+# Convert new df to mlogit compatible format
+idxData_new <- dfidx(Chile_new, 
+                 choice = "vote", 
+                 shape = "wide", 
+                 idx = c("ID"),
+                 alt.levels = c("AU", "Y", "N"))
+
+# Estimate model from new data
+mlogit_model_Y_AU <- mlogit(vote ~ 0 | age + sex + income | 0, 
+                         data = idxData_new, reflevel = "Y")
+
+summary(mlogit_model_Y_AU)
+```
+
+Now let's look at these different models side by side:
+
+```{r}
+stargazer(mlogit_model_Y, mlogit_model_Y_noA, mlogit_model_Y_AU, 
+          type = "text")
+```
+
+We can exponentiate the coefficients for log odds:
+
+```{r}
+stargazer(mlogit_model_Y, mlogit_model_Y_noA, mlogit_model_Y_AU, 
+          type = "text", apply.coef = exp)
+```
+
 
 ## Probit model
 
@@ -386,6 +428,4 @@ nested_model <- mlogit(vote ~ 0 | age + sex + income | 0,
 
 # Summarize the model
 summary(nested_model)
-
-
 ```
