@@ -1,0 +1,391 @@
+---
+title: "Multinomial Models"
+author:  
+- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu]; updated by Patrick Munger
+date: Fall 2024
+output: pdf_document
+urlcolor: blue
+---
+
+# Today's agenda
+
+1.  Multinomial models with `multinom()` function from `nnet` package
+2.  Predicted probabilities
+3.  Multinomial models with `mlogit()` function from `mlogit` package because we need mlogit package to conduct tests like Hausman test for IIA
+4.  Hausman test
+5.  Multinomial Probit and Conditional Multinomial Logit for relaxing IIA assumption
+
+So far, we have been looking at different forms of logit regression. We had observed 3 different forms the logit:
+
+1.  *Binomial logit:* DV has two categories usually coded as zero and one (many call this binary variable, dummy variable - not politically correct). E.g., Did you vote in the election? Yes or No.
+
+2.  *Ordinal logit:* DV has categories in which there is a logical order and hierarchy among the each member of the category. E.g., How much do you agree with the following statement? Strongly agree, agree, neutral, disagree, and strongly disagree.
+
+3.  *Multinomial logit:* DV has categories more than 2 in which there is no logical order. E.g., Which of the following party you strongly identify with? Republican, Democrat, Independents.
+
+# Preliminaries
+
+```{r directory, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+getwd() # Check your current working directory
+# setwd() # Set and specify your working directory to the desired folder
+```
+
+```{r set_seed, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# Specify any integer
+set.seed(1234)
+```
+
+Packages we'll be needing:
+
+```{r}
+library(tidyverse) # Utility tools
+library(stargazer) # Tables
+library(car) # Companion to Applied Regression
+library(carData) # Supplemental Data
+library(gmodels) # Crosstabs
+library(nnet) # Multinomial logit 
+library(mlogit) # Multinomial logit
+library(dfidx) # Necessary for mlogit package
+library(Formula) # helps with writing regression models
+library(reshape2) # manipulating data
+library(effects) # Plotting
+library(ggeffects) # marginal effects, predicted probabilities, plotting
+library(plm)  
+library(broom) # table with p-values 
+```
+
+# Upload Data
+
+We'll be using vote vote poling data from the British Election Panel Study (from `carData` package)
+
+```{r}
+british_election <- carData::BEPS # BEPS: British Election Panel Study
+```
+
+Variables in the dataset:
+
+-   `vote` -- Party choice: Conservative, Labour, or Liberal Democrat (this will be our DV)
+-   `age` -- in years
+-   `economic.cond.national` -- Assessment of current national economic conditions, 1 to 5.
+    -   got a lot better (1), got a little better (2), stayed the same (3),
+    -   got a little worse (4), got a lot worse (5)
+-   `economic.cond.household` -- Assessment of current household economic conditions, 1 to 5.
+-   `Blair` -- Assessment of the Labour leader, 1 to 5.
+-   `Hague` -- Assessment of the Conservative leader, 1 to 5.
+-   `Kennedy` -- Assessment of the leader of the Liberal Democrats, 1 to 5.
+-   `Europe` -- an 11-point scale that measures respondents' attitudes toward European integration. High
+-   `political.knowledge` -- Knowledge of parties' positions on European integration, 0 to 3.
+-   `gender` -- female or male.
+
+Lets first get a sense of the distribution of the data:
+
+```{r}
+summary(british_election)
+
+ggplot(data = gather(british_election, factor_key = TRUE), 
+       aes(x = factor(value))) + 
+  geom_bar() + 
+  facet_wrap(~ key, scales = "free", as.table = TRUE, nrow = 5) + 
+  xlab("") + 
+  theme_bw()
+```
+
+# Running the models
+
+```{r}
+multinom_model <- multinom(vote ~ gender + age + economic.cond.national + 
+                             economic.cond.household, data = british_election, 
+                           Hess = TRUE)
+
+stargazer(multinom_model, type = "text")
+
+```
+
+How could we estimate this model different with the same variable specification?
+
+One category of the DV must serve as the reference. Which category serves this function has theoretical implications. However, by default R will use the first category as the reference. In a nominal variable, whichever category is first by default will likely be arbitrary. We can check this with `levels()`:
+
+```{r}
+# Checking the order of categories in 'vote'
+levels(british_election$vote)
+```
+
+It looks like "Conservative" is the default reference category, which makes since as it did not appear in our stargazer table.
+
+We can manually specify the reference category before estimating our model with `relevel()`. Let's create 3 new variables, so that each category can serve as the reference in separate models.
+
+```{r}
+british_election$voteD <- relevel(british_election$vote, ref = "Liberal Democrat")
+british_election$voteL <- relevel(british_election$vote, ref = "Labour")
+british_election$voteC <- relevel(british_election$vote, ref = "Conservative") # This will be the same as the default 
+```
+
+Estimating models for each reference category (3 models):
+
+```{r}
+mnD <- multinom(voteD ~ gender + age + economic.cond.national + economic.cond.household, 
+                data = british_election, Hess=TRUE)
+
+mnL <- multinom(voteL ~ gender + age + economic.cond.national + economic.cond.household, 
+                data = british_election, Hess=TRUE)
+
+mnC <- multinom(voteC ~ gender + age + economic.cond.national + economic.cond.household, 
+                data = british_election, Hess=TRUE)
+
+summary(mnD)
+summary(mnL)
+summary(mnC)
+```
+
+## Uncertainty Estimates
+
+The `multinom()` function does not provide p-values! You can get significance of the coefficients using the `stargazer()` function. You can either manually calculate p-values or use the `tidy()` function from the `broom` package which will provide the coefficient estimate, test statistic (z score) and p-value.
+
+Manually fetching p-values:
+
+```{r}
+# Calculating z-scores
+mnDz <- summary(mnD)$coefficients/summary(mnD)$standard.errors
+mnLz <- summary(mnL)$coefficients/summary(mnL)$standard.errors
+mnCz <- summary(mnC)$coefficients/summary(mnC)$standard.errors
+
+# Calculating p-values
+mnDp <- (1 - pnorm(abs(mnDz), 0, 1)) * 2
+mnLp <- (1 - pnorm(abs(mnLz), 0, 1)) * 2
+mnCp <- (1 - pnorm(abs(mnCz), 0, 1)) * 2
+```
+
+Using `tidy()`
+
+```{r}
+tidy(mnD, exponentiate = FALSE)
+```
+
+Or, you can use `stargazer` to print results table with standard erroes and significance stars:
+
+```{r}
+stargazer(mnD, mnL, mnC, type = "text")
+
+# missing N 
+stargazer(mnD, mnL, mnC, 
+          add.lines = list(c("N", rep(nrow(british_election), 6))), # this line adds N
+          type = "text")
+                                        
+```
+
+## Interpretation
+
+Like other logit formats we have seen, we cannot directly interpret the magnitude of the coefficients since they are log odds. We can interpret the significance and direction of the log odds. We can say the following for model 1 (for instance): A one-unit increase in the variable age is associated with the increase in the log odds of voting for Conservative Party vs the reference group which is the Liberal Democrats. In order to provide better interpretation, we are going to rely on predicted probabilities.
+
+### Odds Ratios
+
+Just as with binary logit, we can exponentiate the coefficients to obtain the more interpretable odds rations. This can be done by including `apply.coef = exp`. Remember, since we loose negative signs with exponentiation, we interpret odds ratios below 1 as negative effects (increasing the predictor *decreases* odds of the outcome relative to reference category by `1 - OR`), and odds ratios above 1 as positive effects (increasing the predictor *increases* odds of the outcome relative to reference category by `1 - OR`).
+
+```{r}
+stargazer(mnD, mnL, mnC, 
+          type = "text", 
+          apply.coef = exp)   # Set the confidence interval level to 95%
+
+```
+
+# Predicted probabilities
+
+Just as with other models, we can use ggpredict() to generate predicted probabilities.
+
+We want to find how `economic.cond.national` affects the `vote` outcome. By default, `age` and `economic.cond.household` will be held at their mean, and `gender` at its modal category of 1 ("female"). We'll use the original model, with "Conservative" as the default reference category.
+
+```{r}
+mean(british_election$age) # Chceck 
+mean(british_election$economic.cond.household)
+
+predicted_multinom2 <- ggpredict(multinom_model, terms = "economic.cond.national")
+```
+
+Remember we can specify custom levels of the other IVs with `condition()`:
+
+```{r}
+predicted_multinom_custom <- ggpredict(multinom_model, terms = "economic.cond.national",
+                                condition = c(gender = 2, 
+                                              age = 30, 
+                                              economic.cond.household = 2))
+```
+
+Plotting the first PPs:
+
+```{r}
+plot(predicted_multinom) +
+  labs(x = "National economic condition",
+       y = "Predicted probability of Vote") +
+  theme_bw()
+```
+
+But this plot does not have confidence interval. We can use `Effect` function for this.
+
+```{r}
+national_effect <- Effect("economic.cond.national", multinom_model)
+
+plot(national_effect, rug=FALSE, 
+     main="Effect of National Economic Condition on Vote Choice")
+```
+
+*Quick interpretation*: As national economic condition gets worse, the vote share of Conservative Party decreases. In contrast, as national economic condition gets worse, the share of the Labour Party increases.
+
+Let's try with gender, which was not statistically significant.
+
+```{r}
+mean(british_election$economic.cond.national)
+
+ggpredict(multinom_model, terms = "gender") %>% 
+  plot()
+```
+
+With confidence intervals:
+
+```{r}
+gender_effect <- Effect("gender", multinom_model)
+
+plot(gender_effect, rug=FALSE, main="Effect of Gender on Vote Choice")
+```
+
+As you can see confidence intervals overlap, and we do not see any difference between male and female voters.
+
+Note: we can use `xlevels = list()` to set custom levels of the other IVs in `Effects()` (as with `conditions()` in `ggpredict()`)
+
+# Independence of Irrelavent Alternatives (IIA) Assumption
+
+To test the IIA assumption with the Hausman test, we will need to estimate the model with the `mlogit` package, as `nnet` does not returen all the necessary information.
+
+However, since the Hausman test requires a restricted model that excludes one DV category, we will use data with a DV with \>3 categories. Ottherwise, the restricted model will become a binary logit, and the `hmftest` expects two `mlogit` models.
+
+### New Dataset
+
+We will use data from the car package on vote intentions on the 1988 Chilean referendum on Pinochet extending his Presidency. (<https://www.rdocumentation.org/packages/car/versions/2.1-6/topics/Chile>)
+
+```{r}
+# Load the Chile dataset
+data("Chile")
+
+# View the structure of the dataset
+str(Chile)
+
+# Check the levels of the vote variable (this is the 4-category variable)
+levels(Chile$vote)
+
+# Summary of the dataset
+summary(Chile)
+
+table(Chile$vote)
+```
+
+The vote ouctome has 4 categories:
+
+-   `Y` (vote intention 'yes'): 868 responses
+-   `N` (vote intention 'no'): 889 responses
+-   `A` (vote intention 'abstain'): 187 responses
+-   `U` (vote intention 'undecided'): 588
+
+We'll use the age, sex, and income variables as predictors.
+
+### Estimate mlogit model
+
+Note when we specify `mlogit()` the same as `multinom()`, we get an error:
+
+```{r}
+mlogit(vote ~ age + sex + income, 
+       data = Chile)
+```
+
+This doesn't work because the data are not properly formatted. We need to transform the data into a form which `mlogit` demands. Specifically, `mlogit` requires data to be in long format as opposed to wide. In wide format, each row represents an individual with variables as columns. In long format, each individual will have three rows, one for each outcome category. To restructure to long format, we can use the `dfidx` (Indexed Data Frames) package, specifying the following conditions:
+
+-   `choice =` ... -- your outcome variables - a set of unordered choices
+-   `shape =` ... -- the 'shape' of your data, currently wide
+-   `idx =` ... -- observation-unique ID variable, we will create this first
+-   `alt.levels =` -- categories of our DV
+
+The resulting "vote" column will indicate if that individual voted for the choice corresponding with each row. The new dataset should have 4 times as many observations, as there will be 4 rows for each respondent.
+
+```{r}
+# First, creating an ID variable for each observation
+Chile$ID <- seq.int(nrow(Chile))
+Chile$sex <- as.numeric(Chile$sex)
+
+idxData <- dfidx(Chile, 
+                 choice = "vote", 
+                 shape = "wide", 
+                 idx = c("ID"),
+                 alt.levels = c("Y", "A", "N", "U"))
+```
+
+Let's run the mlogit model
+
+The `mlogit` syntax is structured in 3 parts, divided by the `|` character:
+
+1.  Choice-specific variables: Variables that vary across alternatives.
+2.  Individual-specific variables: Variables that are constant across alternatives for each individual (e.g., age, gender, etc.).
+3.  Alternative-specific constants (intercepts): Constants that capture the baseline preference for each alternative.
+
+All of our predictors are individual-specific, so we will indicate `0` for parts 1 and 3.
+
+```{r}
+mlogit_model <- mlogit(vote ~ 0 | age + sex + income | 0, 
+              data = idxData)
+
+summary(mlogit_model)
+```
+
+We can maunally set the `reflevel` within the `mlogit` syntax:
+
+```{r}
+mlogit_model_U <- mlogit(vote ~ 0 | age + sex + income | 0, 
+                  data = idxData, reflevel = "U")
+
+summary(mlogit_model_U)
+```
+
+## Hausman-McFadden test for IIA
+
+First we will need to estimate a restricted model that excludes one vote choice category. Let's exclude the 'A' category (abstain), leaving 'U' as the reference.
+
+```{r}
+mlogit_model_no_A <- mlogit(vote ~ 0 | age + sex + income | 0, 
+                  data = idxData, reflevel = "U", alt.subset = c("Y", "N", "U"))
+
+summary(mlogit_model_no_A)
+```
+
+Now we can conduct the Hausman-McFadden Test:
+
+```{r}
+# Perform the Hausman-McFadden test
+hmftest(mlogit_model_U, mlogit_model_no_A)
+
+```
+
+The null hypothesis is that the IIA assumption is met.
+
+## Probit model
+
+Note: This takes forever!!
+
+```{r}
+m_probit <- mlogit(vote ~ 0 | age + sex + income | 0, 
+                  data = idxData, 
+                  probit = TRUE)
+```
+
+## Nested logit
+
+```{r}
+# Fit the nested logit model, creating a nest for A and U and a nest for Y and N
+nested_model <- mlogit(vote ~ 0 | age + sex + income | 0, 
+                       data = idxData,
+                       nests = list(
+                         Abstain_Undecided = c("A", "U"),  # Nest 1
+                         Yes_No = c("Y", "N")              # Nest 2
+                       ))
+
+# Summarize the model
+summary(nested_model)
+
+
+```
