@@ -277,6 +277,14 @@ stargazer(w1, e1 ,
           )
 )
 ```
+The shape parameter is not returned in the summary, but we can get it by
+taking the inverse of the scale parameter:
+
+```{r}
+scale_param <- w1$scale
+shape_param <- 1 / scale_param
+shape_param
+```
 
 ## Check AIC for model selection
 
