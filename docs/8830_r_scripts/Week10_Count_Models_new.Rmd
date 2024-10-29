@@ -140,6 +140,8 @@ By accounting for overdispersion Negative Binomial models will result in higher 
 
 To account for this overdispersion, we can estimate a negative binomial with the same function, specifying `negative.binomial` as the family.
 
+To account for this overdispersion, we can estimate a negative binomial with the same function, specifying negative.binomial as the family. We have to set the theta (dispersion parameter) value. For moderate overdispersion, 1 is usually an appropriate value. For higher overdispersion, higher values might be appropriate. There are also ways of estimating theta from the data, but this often leads to convergance issues. Setting it to a specified value makes it easier for the optimization algorithm to estimate coefficients. 
+
 ```{r}
 nb1 <- glm(number_of_victims ~ number_of_perpetrators +  scale(GDP) + 
                       GDP_Growth + Trade_Perc_GDP + Mineral_Rents_Perc, 
