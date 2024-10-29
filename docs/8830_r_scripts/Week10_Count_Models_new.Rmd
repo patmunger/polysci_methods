@@ -189,6 +189,8 @@ It looks like 56% of our observations are zeros.
 
 With `pscl` package's `zeroinfl()` function we can fit a zero-inflated poisson or negative binomial model. The upper half is the poisson or negative binomial portion, while the bottom is the logit component.
 
+There will be two sets of IVs in these models. The variables specified before the `|` will be those used to model the Poisson or Negative Binomial outcome. The variables specified after the `|` will be those used for the first-stage logit process, used to model excess zeros (zero-inflation).  
+
 ## Zero-inflation Poisson
 
 ```{r}
