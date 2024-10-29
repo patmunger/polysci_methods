@@ -16,7 +16,7 @@ urlcolor: blue
 2.  Test for overdispersion
 3.  Estimate Negative Binomial with GLM
 4.  Estimate zero-inflation models
-5.  Plot Marginal Effects
+5.  Plot Predicted Counts
 
 # Preliminaries
 
