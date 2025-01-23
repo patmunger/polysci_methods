@@ -122,8 +122,8 @@ These functions will return TRUE or FALSE values indicating if an object is of t
 is.integer(sca)
 is.numeric(sca)
 is.character(sca)
-is.factor()
-is.logical()
+is.factor(sca)
+is.logical(sca)
 is.na(sca) # checks for presence of missing values 
 ```
 
