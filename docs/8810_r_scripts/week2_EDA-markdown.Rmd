@@ -25,7 +25,7 @@ R stores data as something called 'objects', of which there are several differen
 
 ```{r}
 class() # indicates the class of the object (eg. dataframe, numeric, character, etc.)
-typeof() # provides the internal storage type of the object (eg. double, list, haracter, etc.)
+typeof() # provides the internal storage type of the object (eg. double, list, character, etc.)
 str() # provides summary of an object - type, dimensions, truncated contents 
 ```
 
