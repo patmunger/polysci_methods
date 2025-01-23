@@ -197,7 +197,7 @@ range()    # range with minimum and maximum value
 For example, let's summarize the participatory democracy variable (numeric) from our vdem data.
 
 ```{r}
-summary(my_data$v2x_partipdem)
+summary(my_data$participatory_dem)
 ```
 
 If we summarize a character variable, we will get different output:
