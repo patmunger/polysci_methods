@@ -304,14 +304,14 @@ my_data |>
   ggplot(aes(x = year, y = democracy)) +
   geom_line() +
   theme_bw() +
-  labs(x = "Year", y = "Democracy") +
+  labs(x = "Year", y = "Democracy", title = "Democracy over Time in Turkey") +
   scale_x_continuous(breaks = seq(1800, 2020, by = 20)) +
   scale_y_continuous(breaks = seq(0, 1, by = 0.1))
 ```
 
 ## Bar Plot
 
-Now let's make a bar plot. A bar plot rewuires a non-numeric (non-continuous) variable. Let's use the `regime_type` variable which is class integer with four possible values.
+Now let's make a bar plot. A bar plot requires a non-numeric (non-continuous) variable. Let's use the `regime_type` variable which is class integer with four possible values.
 
 ### Base R
 
@@ -352,7 +352,7 @@ my_data |>
 
 ## Histogram
 
-Now let's do a histogram. This is similar to a barplot but we can use a continuou, numeric variable, as the values will be aggregated into bins. Let's use the `democracy` variable.
+Now let's do a histogram. This is similar to a barplot but we can use a continuous, numeric variable, as the values will be aggregated into bins. Let's use the `democracy` variable.
 
 ### Base R
 
@@ -369,7 +369,7 @@ In ggplot we use the same syntax as the bar plot, simply replacing `geom_bar()` 
 ```{r}
 my_data |> 
   ggplot(aes(x = democracy)) +
-  geom_histogram()
+  geom_histogram(na.rm = TRUE)
 ```
 
 Let's enhance in with a theme, custom axes, custom bin width, and frequencies.
@@ -452,4 +452,3 @@ my_data |>
   labs(x = "Democracy", y = "GDP per capita") +
   geom_smooth(method = lm)
 ```
-
