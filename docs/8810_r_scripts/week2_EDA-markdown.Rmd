@@ -38,6 +38,22 @@ vec <- c(1, 2, 3) # This will create a vector numeric object
 log <- c(TRUE, FALSE, TRUE, TRUE) # This will create a logical object (requires T, F, TRUE, or FALSE values)
 ```
 
+Let's create an ordered categorical variable:
+
+```{r}
+# Create a vector of categories
+cat <- c("low", "medium", "high", "medium", "low", "high")
+
+# Convert it to an ordered factor
+ord_var <- factor(cat, 
+                      levels = c("low", "medium", "high"), 
+                      ordered = TRUE) # This makes sure the categories are assigned a logical order
+
+# Print the ordered variable
+print(ord_var)
+
+```
+
 Inspect class of each object:
 
 ```{r}
@@ -45,6 +61,7 @@ class(txt)
 class(sca)    
 class(vec)
 class(log)
+class(ord_var)
 ```
 
 Inspect storage type of each object:
@@ -54,6 +71,7 @@ typeof(txt)
 typeof(sca)   
 typeof(vec)   
 typeof(log)
+typeof(ord_var)
 ```
 
 Inspect structure of each object:
@@ -63,6 +81,7 @@ str(txt)
 str(sca)   
 str(vec)
 str(log)
+str(ord_var)
 ```
 
 Now let's inspect an entire dataset. First we will import the data with the function to load its respective file type (rds in this case). We will use the assignment operator to store the dataframe (df) as an object called `my_data`. We are importing the Varieties of Democracy (V-Dem) version 12 dataset (the corresponding codebook can be found online). Once imported, it will show up in the environment pane, from which we can open it to view as a spreadsheet.
@@ -76,7 +95,7 @@ Note:
 
 -   We are using an Rds file here as it conveniently stores an R object in a highly compressed format, making it easier and quicker to import large datasets such as vdem.
 
--   The function would look different if we were loading a different file type. For example, if we were loading a csv (the most common way to store datasets) we would use `read_csv()` from the `tidyverse` package instead of `readRDS()` from base R. We could also import an excel file with `read_excel()` from the `readxl` package, although it is generally better to save our datasets as .csv than .xlsl as it can be loaded more seamlessly across softwares.
+-   The function would look different if we were loading a different file type. For example, if we were loading a csv (the most common way to store datasets) we would use `read_csv()` from the `tidyverse` package (or `read.csv()` from base R) instead of `readRDS()` from base R. We could also import an excel file with `read_excel()` from the `readxl` package, although it is generally better to save our datasets as .csv than .xlsl as it can be loaded more seamlessly across softwares.
 
 -   We can also import our data by navigating to our data directory in the files tab in the bottom right pane of our studio, but it is generally good to include the function to import our data within our R script.
 
@@ -433,3 +452,4 @@ my_data |>
   labs(x = "Democracy", y = "GDP per capita") +
   geom_smooth(method = lm)
 ```
+
