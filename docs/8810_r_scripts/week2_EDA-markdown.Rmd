@@ -187,7 +187,7 @@ mean()     # arithmetic mean
 median()   # median
 sd()       # standard deviation
 table()    # shows frequencies of factor/category variables
-var(x)     # (sample) variance
+var()     # (sample) variance
 quantile() # quantile
 min()      # minimum value
 max()      # maximum value
