@@ -1,0 +1,435 @@
+---
+title: "Week 2: Exploratory Data Analysis (EDA)"
+author: "Ozlem Tuncel, updated and annotated in markdown by Patrick Munger"
+date: "Spring 2025"
+output: html_document
+---
+
+# Setup
+
+Load libraries:
+
+```{r}
+library(tidyverse)
+library(psych)
+library(PerformanceAnalytics)
+```
+
+Note: if you have not previously installed these packages on your system, you will need to install it with `install.packages()`, for example: `install.packages("tidyverse")`. If you have installed them previously, you simply need to library them with the above code chunk.
+
+# Data Types and Structures
+
+## Inspecting
+
+R stores data as something called 'objects', of which there are several different types. The following are some core functions we can use to identify the data type an structure of an object in R.
+
+```{r}
+class() # indicates the class of the object (eg. dataframe, numeric, character, etc.)
+typeof() # provides the internal storage type of the object (eg. double, list, haracter, etc.)
+str() # provides summary of an object - type, dimensions, truncated contents 
+```
+
+Let's first create some basic objects to inspect. We use the assignment operator `<-` (or `=`, though less common) to assign data to an object of a specified name (you can choose any name, just ensure there are no spaces and that the name is not already in use). Once created, the object will show up in environment pane in the top right of RStudio. We can remove an object from the environment with the `rm()` function or wipe the entire environment clean with the broom button in the environment pane.
+
+```{r}
+txt <- "Hello" # This will create a character object (requires enclosure in quotes)
+sca <- 10 # This will create a scalar numeric object 
+vec <- c(1, 2, 3) # This will create a vector numeric object
+log <- c(TRUE, FALSE, TRUE, TRUE) # This will create a logical object (requires T, F, TRUE, or FALSE values)
+```
+
+Inspect class of each object:
+
+```{r}
+class(txt)
+class(sca)    
+class(vec)
+class(log)
+```
+
+Inspect storage type of each object:
+
+```{r}
+typeof(txt)   
+typeof(sca)   
+typeof(vec)   
+typeof(log)
+```
+
+Inspect structure of each object:
+
+```{r}
+str(txt)    
+str(sca)   
+str(vec)
+str(log)
+```
+
+Now let's inspect an entire dataset. First we will import the data with the function to load its respective file type (rds in this case). We will use the assignment operator to store the dataframe (df) as an object called `my_data`. We are importing the Varieties of Democracy (V-Dem) version 12 dataset (the corresponding codebook can be found online). Once imported, it will show up in the environment pane, from which we can open it to view as a spreadsheet.
+
+```{r, warning=FALSE}
+# We are using Varieties of Democracy version 12
+my_data <- readRDS("data/vdem12.rds")
+```
+
+Note:
+
+-   We are using an Rds file here as it conveniently stores an R object in a highly compressed format, making it easier and quicker to import large datasets such as vdem.
+
+-   The function would look different if we were loading a different file type. For example, if we were loading a csv (the most common way to store datasets) we would use `read_csv()` from the `tidyverse` package instead of `readRDS()` from base R. We could also import an excel file with `read_excel()` from the `readxl` package, although it is generally better to save our datasets as .csv than .xlsl as it can be loaded more seamlessly across softwares.
+
+-   We can also import our data by navigating to our data directory in the files tab in the bottom right pane of our studio, but it is generally good to include the function to import our data within our R script.
+
+For simplicity's sake, let's first change a few variable names that we will work with. For this we will first assign the df to a new object (here we will use the same object name to simply overwrite it), followed by the pipe operator `|>` which passes the result of an operation to the next function (we can also use `%>%` from tidyverse (`dplyr`) for this). We then will use the `rename()` function to assign new names to a few variables from our df. The syntax here is the new name `=` the old name, with variables separated by commas.
+
+```{r}
+my_data <- my_data |>
+  rename(democracy = v2x_polyarchy,
+         participatory_dem = v2x_partipdem,
+         regime_type = v2x_regime, 
+         gdp = e_gdp,
+         gdp_per_capita = e_gdppc)
+```
+
+Let's inspect the entire dataset object:
+
+```{r}
+class(my_data)
+typeof(my_data)
+str(my_data)
+```
+
+Now let's inspect a single variable within the df - we can do this by using the `$` operator between the df and variable names (no spaces). Let's inspect the participatory democracy variable.
+
+```{r}
+class(my_data$participatory_dem)
+typeof(my_data$participatory_dem)
+str(my_data$participatory_dem)
+```
+
+Now the country name variable:
+
+```{r}
+class(my_data$country_name)
+typeof(my_data$country_name)
+str(my_data$country_name)
+```
+
+These functions will return TRUE or FALSE values indicating if an object is of the specified type:
+
+```{r}
+# Core functions to determine any object's class
+is.integer(sca)
+is.numeric(sca)
+is.character(sca)
+is.factor()
+is.logical()
+is.na(sca) # checks for presence of missing values 
+```
+
+## Transforming
+
+We can change the class of an object with the following functions:
+
+```{r}
+as.numeric()
+as.integer()
+as.character()
+as.factor()
+as.logical()
+```
+
+For example, say we have an number stored as a character object. Essentially, the number will be treated as text, and we cannot perform mathematical operations on it.
+
+```{r}
+obj <- "8.2"
+```
+
+We can convert it to numeric class and assign it to a new object. We could also convert it to integer class since it is a whole number (if it contained a decimal, the decimal would be dropped):
+
+```{r}
+num <- as.numeric(obj)
+int <- as.integer(obj) # integers are followed by 'L' 
+class(num)
+class(int)
+```
+
+We could also convert the numeric or integer object back to a character if we needed to.
+
+Or let's say we have a binary True/False variable but it is currently stored as a character.
+
+```{r}
+bin_cha <- c("TRUE", "FALSE", "FALSE", "TRUE")
+class(bin_cha)
+```
+
+We can convert it to logical if the characters are 'TRUE', 'FALSE', 'T', or 'F' (Boolean values):
+
+```{r}
+bin_log <- as.logical(bin_cha)
+class(bin_log)
+```
+
+Some objects cannot be converted to certain classes, such as attempting to convert text to a numeric class. This will result in an NA value.
+
+```{r}
+as.numeric(txt)
+```
+
+# Descriptive Statistics
+
+The following are functions for obtaining basic descriptive statistics from a variable. These are from base R so do not require a specific package to be loaded.
+
+```{r}
+# Basic functions to use for descriptives ----
+summary()  # produces result summaries 
+mean()     # arithmetic mean
+median()   # median
+sd()       # standard deviation
+table()    # shows frequencies of factor/category variables
+var(x)     # (sample) variance
+quantile() # quantile
+min()      # minimum value
+max()      # maximum value
+range()    # range with minimum and maximum value 
+```
+
+For example, let's summarize the participatory democracy variable (numeric) from our vdem data.
+
+```{r}
+summary(my_data$v2x_partipdem)
+```
+
+If we summarize a character variable, we will get different output:
+
+```{r}
+summary(my_data$country_name)
+```
+
+Summary stats that require mathematical operations require numeric variables. For example, taking the mean of the country name variable makes no sense and will result in an error/NA value:
+
+```{r}
+mean(my_data$country_name)
+```
+
+We can also summarize an entire dataframe. The vdem data has too many variables to do this cleanly. Let's try it on `mtcars`, a sample dataset built into R (meaning we do not have to import it and assign it an object):
+
+```{r}
+summary(mtcars)
+```
+
+Fetching a specific statistic for an entire dataframe such as `mean(my_data)` will produce an error/NA value since the df is not a numeric object. Instead, we can use the `sapply()` function to produce a statistic for every variable in our dataset. Let's fetch the mean for all our variables (non-numeric variables will produce errors/NA values):
+
+```{r}
+sapply(my_data, mean, na.rm = T) # will produce mean for every variable in my_data
+```
+
+The `psych` package also has some useful descriptive statistics functions. `describe()` will summarize all of our variables:
+
+```{r}
+describe(my_data)
+```
+
+This is a bit overwhelming for a dataset of our size. Let's try it on `mtcars`:
+
+```{r}
+describe(mtcars)
+```
+
+Producing a correlation matrix with the `chart.Correlation()` function from the `PerformanceAnalytics` is also a useful exercise for EDA.
+
+```{r}
+# I also recommend using correlation matrix 
+library(PerformanceAnalytics)
+chart.Correlation(mtcars)
+```
+
+# Graphing Data
+
+R is excellent at producing clean, and even aesthetically pleasing graphs of data. Base R has some solid graphing functions for simple and quick data visualizations. For more enhanced graphs, we can use the `ggplot2` package (contained within the tidyverse).
+
+## Line Plot
+
+Let's first make a line plot of democracy scores over time (`democracy` and `year` variables). Since our df is so huge, let's just plot data from Turkey.
+
+### Base R
+
+First we'll use the `plot()` function from base R. First, we assign variables to the `x` and `y` axes using the `$` operator to specify the variable names from the df object. Within these specifications, we will use the `%in%` operator within brackets `[]` to specify only `"Turkey"` from the `country_name` variable. Then we will specify the `type` as `"l"` for a line graph, and lastly assign column labels with `xlab` and `ylab`.
+
+```{r}
+# This is a huge data, so let's focus on just one country here. 
+# Let's plot Turkey's democracy score over time using base R.
+plot(x = my_data[my_data$country_name %in% "Turkey",]$year, 
+     y = my_data[my_data$country_name %in% "Turkey",]$democracy, 
+     type = "l", 
+     xlab = "Year", ylab = "Democracy")
+```
+
+### ggplot
+
+Now let's replicate this graph with ggplot. Filtering a variable is easier in the tidyverse, as we can simply use the `filter()`function after our pipe with (make sure the variable name and value separated by two equal signs `==`). We then pipe to the next line to start the `ggplot()` function, in which we specify our axes within `aes()` (aesthetics), then `+` (outside the `()`), and then specify the type of graph with `geom_line()`.
+
+```{r}
+# ggplot version 
+my_data |>
+  filter(country_name == "Turkey") |> 
+  ggplot(aes(x = year, y = democracy)) +
+  geom_line()
+```
+
+Let's enhance it a bit by adding the `theme_bw()` theme, custom axes names, and custom value labels.
+
+```{r}
+my_data |>
+  filter(country_name == "Turkey") |> 
+  ggplot(aes(x = year, y = democracy)) +
+  geom_line() +
+  theme_bw() +
+  labs(x = "Year", y = "Democracy") +
+  scale_x_continuous(breaks = seq(1800, 2020, by = 20)) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.1))
+```
+
+## Bar Plot
+
+Now let's make a bar plot. A bar plot rewuires a non-numeric (non-continuous) variable. Let's use the `regime_type` variable which is class integer with four possible values.
+
+### Base R
+
+This is super easy in base R!
+
+```{r}
+# First inspect the variable class 
+class(my_data$regime_type)
+
+plot(as.factor(my_data$regime_type))
+```
+
+### ggplot
+
+Pretty straightforward in ggplot also:
+
+```{r}
+my_data |> 
+  ggplot(aes(x = regime_type)) +
+  geom_bar() 
+```
+
+Let's enhance it with some custom labels and a theme - to assign these properly, we will need to make `regime_type` class factor with `as.factor()`. We'll also plot the frequency rather than the raw count on the y-axis by dividing the count of each category by the total with `after_stat(count)` and a basic mathematical operation.
+
+```{r}
+# Assign category names to an object 
+my_labels <- c("Closed Autocracy", "Electoral Autocracy", 
+               "Electoral Democracy", "Liberal Democracy")
+
+my_data |> 
+  filter(!is.na(regime_type)) |> 
+  ggplot(aes(x = as.factor(regime_type), y = (after_stat(count))/sum(after_stat(count)))) +
+  geom_bar() + 
+  theme_bw() +
+  labs(x = "Regime Type", y = "Frequency") + 
+  scale_x_discrete(labels = my_labels)
+```
+
+## Histogram
+
+Now let's do a histogram. This is similar to a barplot but we can use a continuou, numeric variable, as the values will be aggregated into bins. Let's use the `democracy` variable.
+
+### Base R
+
+Super easy in base R:
+
+```{r}
+hist(my_data$democracy)
+```
+
+### ggplot
+
+In ggplot we use the same syntax as the bar plot, simply replacing `geom_bar()` with `geom_histogram()`
+
+```{r}
+my_data |> 
+  ggplot(aes(x = democracy)) +
+  geom_histogram()
+```
+
+Let's enhance in with a theme, custom axes, custom bin width, and frequencies.
+
+```{r}
+my_data |> 
+  ggplot(aes(x = democracy, y = (..count..)/sum(..count..))) +
+  geom_histogram(bins = 50, color = "white") + # changing the color to white here helps distinguish between bins in theme_bw
+  labs(x = "Democracy", y = "Frequency") +
+  theme_bw() + 
+  scale_x_continuous(breaks = seq(0, 1, by = 0.1)) +
+  scale_y_continuous(breaks = seq(0, 0.15, by = 0.01))
+```
+
+## Box Plot
+
+Now let's make a boxplot to visualize min, max, median, inter-quartile range, and outliers of our `democracy` variable.
+
+### Base R
+
+Super simple in base R:
+
+```{r}
+boxplot(my_data$democracy)
+```
+
+### ggplot
+
+And in ggplot:
+
+```{r}
+my_data |> 
+  ggplot(aes(x = democracy)) +
+  geom_boxplot()
+```
+
+Let's add a theme, enhance the axes, and flip it by putting `democracy` on the y-axis and `factor(0)` on the y-axis.
+
+```{r}
+my_data |> 
+  ggplot(aes(y = democracy)) +
+  geom_boxplot() + 
+  labs(x = "Democracy", y = "") + 
+  theme_bw() +
+  theme(axis.text.x = element_blank(), 
+        axis.ticks.x = element_blank()) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.1))
+```
+
+## Scatter Plot
+
+Lastly, let's make a scatterplot with `democracy` on the x-axis and `gdp_per_capita` on the y-axis. We'll limit it to just USA data. \### Base R In base R, we use `plot()` without specifying a `type` to produce a scatter plot.
+
+```{r}
+plot(x = my_data[my_data$country_name == "United States of America",]$democracy, 
+     y = my_data[my_data$country_name == "United States of America",]$gdp_per_capita)
+```
+
+### ggplot
+
+In ggplot, we use `geom_point()` for a scatter plot.
+
+```{r}
+my_data |> 
+  filter(country_name == "United States of America") |> 
+  ggplot(aes(x = democracy, y = gdp_per_capita)) +
+  geom_point()
+```
+
+Let's enhance it with a theme, custom axes, and a best fit (OLS) line with `geom_smooth(method = lm)`
+
+```{r}
+my_data |> 
+  filter(country_name == "United States of America") |> 
+  ggplot(aes(x = democracy, y = gdp_per_capita)) +
+  geom_point() + 
+  theme_bw() +
+  scale_x_continuous(breaks = seq(0, 1, by = 0.1)) +
+  scale_y_continuous(breaks = seq(0, 60, by = 10)) +
+  labs(x = "Democracy", y = "GDP per capita") +
+  geom_smooth(method = lm)
+```
