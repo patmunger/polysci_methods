@@ -357,7 +357,7 @@ Let's enhance in with a theme, custom axes, custom bin width, and frequencies.
 
 ```{r}
 my_data |> 
-  ggplot(aes(x = democracy, y = (..count..)/sum(..count..))) +
+  ggplot(aes(x = democracy, y = (after_stat(count))/sum(after_stat(count)))) +
   geom_histogram(bins = 50, color = "white") + # changing the color to white here helps distinguish between bins in theme_bw
   labs(x = "Democracy", y = "Frequency") +
   theme_bw() + 
