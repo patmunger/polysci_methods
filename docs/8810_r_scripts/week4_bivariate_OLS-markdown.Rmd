@@ -1,0 +1,118 @@
+---
+title: "Bivariate OLS"
+author: "Ozlem Tuncel; Patrick Munger"
+date: "Spring 2025"
+output: html_document
+---
+
+# Week 4: Bivariate OLS
+
+Implementation in R is relatively simple and straightforward this week.
+
+### Agenda:
+
+-   Import and clean data
+
+-   Introduce function for estimating OLS: `lm()`
+
+-   View model summary
+
+-   Use stargazer to create well-formated tables
+
+## Setup
+
+### Load libraries:
+
+We are introducing the `stargazer` package here. Make sure you have installed it with `install.packages("stargazer")` or in RStudio's packages pane before loading it.
+
+```{r}
+library(tidyverse) 
+library(stargazer) # For well-formatted output tables (including latex code)
+```
+
+### Import and clean data
+
+Here were are using the V-dem version 12 dataset again, the same we used for EDA in Week 2.
+
+Remember to make sure your working directory is set to the directory where your data file is. Check current working with `getwd()` and change if necessary with `setwd("path to data directory goes here)`, replacing with the actual wath to your data directory.
+
+```{r}
+my_data <- readRDS("data/vdem12.rds")
+```
+
+For ease of interpretation, we will change the names of the two variables we will be using:
+
+```{r}
+my_data <- my_data |>
+  rename(democracy = v2x_polyarchy, gdp_per_capita = e_gdppc)
+```
+
+# Estimate Bivariate OLS
+
+To estimate an OLS model in R, we use the `lm()` (lm stands for linear model). Let's view the documentation for `lm()` using `?` followed by the function. We can also use `help(lm)`. This will list the various arguments that can be included in the function to modify how the model is estimated.
+
+```{r}
+?lm
+```
+
+For now, we will keep things simple and just specify the `formula` and `data`. The syntax is as follows, subtituting the actual names of your variables and data:
+
+-   `lm(formula = dependent_variable ~ independent_variable, data = your_data)`
+
+The dependent variable should always come first, followed by a tilda (`~`), then your independent variable. Place a comma after your independent variable, then specify the data from which the variables are pulled from. It is not necessary to include `data =`, as you can simply place your data name after the comma, but for demonstration purposes it is useful.
+
+Note: it is not necessary to actually include `formula =` and `data =`, as R knows that the formula argument comes first and the data argument second, separated by a comma. Thus we could simply write:
+
+-   `lm(dependent_variable ~ independent_variable, your_data)`
+
+Now let's do this with our actual data and variables and estimate the model. We will use `democracy` as our dependent variable and `gdp_per_capita` as our independent variable.
+
+```{r}
+lm(democracy ~ gdp_per_capita,my_data) 
+```
+
+## Model Summaries
+
+The output of running the model itself does not tell us that much. For more detailed summaries, we can assign the model to an object and then use `summary()`.
+
+```{r}
+my_lm <- lm(democracy ~ gdp_per_capita, my_data) 
+
+summary(my_lm) 
+```
+
+Here we see that we now provided with summary stats of the residuals, uncertainty estimates alongside the coefficient values, and model statistics such as degrees of freedom, R-squared, etc.
+
+Note: `<2.2e-16` is the precision limit R places on summaries of `lm()` models. When we see this, it means that the p-value is very, very close to zero.
+
+## Format Regression Table
+
+Now let's use the `stargazer` package to create a nicely formatted table that summarizes our model results. We use the function `stargazer()` (the same as the package name). First we will have it create a nice text-based table in the console.
+
+```{r, warning = FALSE}
+stargazer(my_lm, type = "text")
+```
+
+Now let's have it produce code that we can copy and paste into latex to produce a nice table. We simply change `type = "text"` to `type = "latex"`.
+
+```{r, warning = FALSE}
+stargazer(my_lm, type = "latex")
+```
+
+We can copy and paste this output straight into latex to produce a article quality table.
+
+We can add a bunch of other arguments to `stargazer()` to modify the table. Use `?stargazer` to view all possible arguments.
+
+```{r, warning=FALSE}
+stargazer(my_lm, 
+          type = "text", # change to "latex" for latex code 
+          title = "The relationship between democracy and GDP per capita", 
+          covariate.labels = c("GDP per capita"),
+          dep.var.labels = c("Electoral Democracy Index"),
+          ci.level = 0.95,
+          star.cutoffs = c(0.05),
+          notes.align = "l",
+          notes.append = FALSE,
+          notes.label = "Notes", 
+          notes = "*p < 0.05. Standard errors are in parentheses.")
+```
