@@ -28,6 +28,7 @@ We are introducing the `stargazer` package here. Make sure you have installed it
 ```{r}
 library(tidyverse) 
 library(stargazer) # For well-formatted output tables (including latex code)
+library(broom)
 ```
 
 ### Import and clean data
@@ -68,7 +69,7 @@ Note: it is not necessary to actually include `formula =` and `data =`, as R kno
 Now let's do this with our actual data and variables and estimate the model. We will use `democracy` as our dependent variable and `gdp_per_capita` as our independent variable.
 
 ```{r}
-lm(democracy ~ gdp_per_capita,my_data) 
+lm(democracy ~ gdp_per_capita, my_data) 
 ```
 
 ## Model Summaries
@@ -96,7 +97,7 @@ stargazer(my_lm, type = "text")
 Now let's have it produce code that we can copy and paste into latex to produce a nice table. We simply change `type = "text"` to `type = "latex"`.
 
 ```{r, warning = FALSE}
-stargazer(my_lm, type = "latex")
+stargazer(my_lm, type = "text")
 ```
 
 We can copy and paste this output straight into latex to produce a article quality table.
@@ -115,4 +116,48 @@ stargazer(my_lm,
           notes.append = FALSE,
           notes.label = "Notes", 
           notes = "*p < 0.05. Standard errors are in parentheses.")
+```
+
+Now let's make some modifications to remove some of the things that make Dr. Fix angry!
+
+To make sure there are no abbreviations, it is easier to just make the modifications in your latex code, so change "Residual Std. Error" to "Residual Standard Error".
+
+Additionally, even though we have explicitly told stargazer to round to 3 decimal places, numbers very close to 0 will still display as 0.0001 instead of 0.000, so we can change this in the latex code.
+
+```{r, warning=FALSE}
+stargazer(my_lm, 
+          type = "text", # change to "latex" for latex code 
+          title = "OLS Model: Democracy", 
+          covariate.labels = c("GDP per capita"),
+          dep.var.caption = "", # Remove the "Dependent Variable" caption
+          dep.var.labels = "", # Remove the dependent variable label
+          column.labels = "Coefficients", # Add "Coefficients" as the column label
+          ci.level = 0.95,
+          star.cutoffs = c(0.05),
+          notes.align = "l",
+          notes.append = FALSE,
+          notes.label = "Notes", 
+          notes = "*p < 0.05. Standard errors are in parentheses.",
+          digits = 3) # Round coefficients to 3 decimal places
+
+```
+
+## Coefficient Plot
+
+We can use the `tidy()` function from the `broom` package to extract the coefficient estimates and confidence intervals from the model then plot them with ggplot.
+
+```{r}
+model_tidy <- tidy(my_lm, conf.int = TRUE)
+print(model_tidy)
+```
+
+Now plot with ggplot using `geom_errorbarh()` to include confidence intervals.
+
+```{r}
+ggplot(model_tidy, aes(x = estimate, y = term)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +
+  labs(title = "Coefficient Plot",
+       x = "Coefficient Estimate") +
+  theme_minimal()
 ```
