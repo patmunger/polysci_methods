@@ -1,5 +1,5 @@
 ###
-### Purpose: Week 5 - Inference 
+### Purpose: Week 5 - Bivariate II
 ### Author: Ozlem Tuncel; Patrick Munger 
 ### Fall 2025
 ### R version: 4.4.1
