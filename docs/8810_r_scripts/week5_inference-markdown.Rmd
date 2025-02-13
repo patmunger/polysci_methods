@@ -1,0 +1,193 @@
+---
+title: 'Week 5: Inference'
+author: "Ozlem Tuncel; Patrick Munger"
+date: "2025-02-11"
+output: html_document
+---
+
+# Week 5: Bivariate OLS -- Inference
+
+This week is mostly about understanding why OLS in the Best Linear Unbiased Estimator (BLUE) and why that allows us to make statistical inferences. This is more conceptual and about understanding the math than interpretation in R, but let's take a look at some other things we can do understand our model estimates.
+
+### Agenda:
+
+-   Import and clean data
+
+-   Estimate and summarize model.
+
+-   Inspect y and y-hat values
+
+-   Compte confidence intervals
+
+-   Plot relationship with OLS and Loess lines
+
+-   Residual Plots
+
+-   Basic Coefficient Plot
+
+## Setup
+
+### Load libraries:
+
+We are introducing the `stargazer` package here. Make sure you have installed it with `install.packages("stargazer")` or in RStudio's packages pane before loading it.
+
+```{r, warning=FALSE}
+library(tidyverse) 
+library(stargazer) 
+library(broom)
+```
+
+### Import and clean data
+
+Here were are using the V-dem version 12 dataset again, the same we used for EDA in Week 2.
+
+Remember to make sure your working directory is set to the directory where your data file is. Check current working with `getwd()` and change if necessary with `setwd("path to data directory goes here)`, replacing with the actual wath to your data directory.
+
+Note: when importing the data, only use /data if the file is in a directory within your working directory called "data". If your data file is located directly in your working ridectory simply specify the file name - "vdem12.rds"
+
+```{r warning=FALSE}
+my_data <- readRDS("data/vdem12.rds") 
+```
+
+Let's subset our data to only include observations for the United States. For ease of interpretation, we will change the names of the two variables we will be using:
+
+```{r}
+us_data <- my_data |>
+  filter(country_name == "United States of America") |> 
+  rename(democracy = v2x_polyarchy, gdp_per_capita = e_gdppc)
+```
+
+### Fit model
+
+Now let's fit our model and assign it to an object. We will include two additional arguements (`x` and `y`) - setting these to `TRUE` will return the model matrix in the list of results (this will be necessary for the next step).
+
+```{r}
+my_model <- lm(democracy ~ gdp_per_capita, 
+               data = us_data,
+               x = TRUE, 
+               y = TRUE)
+```
+
+If we call the names of the elements contained in the `my_model` list object, we can see `x` and `y` are listed, as we sert these arguments to `TRUE`.
+
+```{r}
+names(my_model)
+```
+
+Now let's view the model summary with the `summary()` and `stargazer()` functions. Remember, these functions have default format. When producing a table to include in a write-up, you will likely want to make some formatting adjustments (some of which I included in last week's script).
+
+```{r, warning=FALSE}
+summary(my_model)
+
+stargazer(my_model, type = "text")
+```
+
+## Inspect y and y-hat values
+
+Now let's pull out some elements from the `my_model` object and put them into a dataframe. We can use the `$` to call the specific vectors from the object and bind them together with `cbind()` and pub into a df with `as.data.frame()` and the assignment operator `<-`.
+
+We will pull out the vector of `y` (observed) values, `fitted.values` (predicted or $\hat{y}$ values), and `residuals`.
+
+We can also rename the columns by assigning a vector of new name strings to the df with the `colnames()` function.
+
+```{r}
+# Get y and y-hat: create a data frame and change column names 
+y_yhat <- as.data.frame(cbind(my_model$y, my_model$fitted.values, my_model$residuals))
+colnames(y_yhat) <- c("My Y", "My Y Hat", "My Residuals")
+```
+
+Here, "My Y" ($Y_i$) is the actual observed value of Y in our data, "My Y Hat" ($\hat{y}_i$) is the Predicted value of Y from our OLS and "My Residual" ($u_i$) is the Residual or the difference between the observed ($Y_i$) and predicted ($\hat{y}_i$) values.
+
+Let's inspect the first 10 rows of the new df:
+
+```{r}
+y_yhat[1:10, ]
+```
+
+Now let's add some uncertainty estimates by calculating the lower and upper limits of a 95% confidence interval for the $\hat{y}$ values.
+
+Another way to pull out certain elements of our model results is with the `predict()` function. We'll use the `predict()` function to pull out the standard errors of the fitted values into an object called "predictions". We will then save the vector of standard errors to its own object.
+
+```{r}
+predictions <- predict(my_model, se.fit = TRUE)
+se_fitted_values <- predictions$se.fit
+```
+
+Now to compute the upper and lower limits, we will use the critical value for a 95% confidence interval (1.96). We multiply this value by the standard errors, add the result to out predicted values to obtain the upper limits and subtract from the predicted values to obtain the lower limits. We will assign each to a new column in our `y_hat` df.
+
+```{r}
+y_yhat$yhat_ub <- my_model$fitted.values + (1.96*se_fitted_values)
+y_yhat$yhat_lb <- my_model$fitted.values - (1.96*se_fitted_values)
+```
+
+Let's look at the first 10 rows:
+
+```{r}
+y_yhat[1:10, ]
+```
+
+## Plot X and Y values
+
+Let's make a scatterplot of our independent and dependent variables scores. We will not need our model results for this, just our original dataframe.
+
+We can fit an OLS line to the data points with ggplot's `geom_smooth()` function. To specify that we want an OLS line we set the `method` argument to `"lm"` (linear model), then we can assign it a color. We can include a separate `geom_smooth()` function and allow the default method to be fit, assigning it a different color. This will fit a "Loess line" (locally estimated scatterplot smoothing) which uses polynomial regression and moving averages to fit a line which is allowed to curve through local grouping of the data points. This can help us assess the linearity of the relationship.
+
+```{r warning = FALSE}
+us_data |> 
+  ggplot(aes(x = gdp_per_capita, y = democracy)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "red") +
+  geom_smooth(color = "blue") +
+  theme_bw() +
+  labs(x = "GDP per capita", y = "Democracy",
+       title = "Relationship between democracy and GDP per capita in the US",
+       subtitle = "(red is linear line, blue is loess line)")
+```
+
+## Residual Plots
+
+Now let's plot the fitted values and residuals. The fitted values are the predicted values of Y from our model, or $\hat{y}$.
+
+This can help us assess the presence of heteroskedasticity (to be addressed further next week) by inspecting if the points appear to be ransdomly scattered around 0 or if there is a discernable patters.
+
+```{r}
+my_model |> 
+  ggplot(aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0) +
+  theme_bw() +
+  labs(x = "Fitted values", y = "Residuals", 
+       title = "Residual vs. Fitted Values Plot")
+```
+
+Now let's plot a histogram of the residuals to look at there distribution. We can pull the vector of residuals from `my_model` with the `$` operator. We can use the `breaks` argument to set how many bars the data is grouped into.
+
+```{r}
+hist(my_model$residuals,
+     breaks = 30,  
+     xlab = "Residuals", 
+     ylab = "Frequency", 
+     main = "Distribution of Residuals")
+```
+
+## Coefficient Plot
+
+We can use the `tidy()` function from the `broom` package to extract the coefficient estimates and confidence intervals from the model then plot them with ggplot.
+
+```{r}
+model_tidy <- tidy(my_model, conf.int = TRUE)
+print(model_tidy)
+```
+
+Now plot with ggplot using `geom_errorbarh()` to include confidence intervals.
+
+For bivariate regression, this will only plot two parameter estimates: the intercept and the coefficient for our lone IV. With multiple regression, there will be a separate coefficient plotted for each IV we include in the model.
+
+```{r}
+ggplot(model_tidy, aes(x = estimate, y = term)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +
+  labs(title = "Coefficient Plot",
+       x = "Coefficient Estimate") +
+  theme_minimal()
+```
