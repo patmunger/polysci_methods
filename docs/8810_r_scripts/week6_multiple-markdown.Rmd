@@ -85,6 +85,32 @@ stargazer(simple, multiple,
 
 ## Gauss-Markov Assumptions
 
+### Linearity
+
+To assess the linearity of the relationship between each one of our IVs and our DV, we can create scatterplots for each with an OLS and Loess line, as we did last week. 
+
+```{r, warning = FALSE}
+us_data |> 
+  ggplot(aes(x = gdp_per_capita, y = democracy)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "red") +
+  geom_smooth(color = "blue") +
+  theme_bw() +
+  labs(x = "GDP per capita", y = "Democracy",
+       title = "Relationship between democracy and GDP per capita in the US",
+       subtitle = "(red is linear line, blue is loess line)")
+
+us_data |> 
+  ggplot(aes(x = gdp_per_capita, y = urbanization)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "red") +
+  geom_smooth(color = "blue") +
+  theme_bw() +
+  labs(x = "GDP per capita", y = "Urbanization",
+       title = "Relationship between democracy and urbanization in the US",
+       subtitle = "(red is linear line, blue is loess line)")
+```
+
 ### Multicollinearity
 
 We can generate pairwise correlations to ensure our independent variables are not perfectly (or near perfectly) linearly correlated:
