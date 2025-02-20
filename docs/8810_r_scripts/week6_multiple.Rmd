@@ -1,0 +1,155 @@
+---
+title: 'Week 6: Multiple Regression'
+author: "Ozlem Tuncel; Patrick Munger"
+date: "Spring 2025"
+output: html_document
+---
+
+# Week 6: Multiple Regression
+
+## Agenda
+
+-   Import and clean data
+-   Estimate simple and multiple OLS models
+-   Compare models
+-   Demonstrate some basic tests for GM Assumptions
+
+## Setup
+
+### Load libraries:
+
+There might be some new packages here. Make sure you have them all installed before loading them.
+
+```{r}
+library(tidyverse)  
+library(stargazer)  
+library(lmtest)     # Breusch-Pagan test 
+library(psych)      # Histograms and correlations for a data matrix
+library(broom)      # tidy models
+library(stats)      # for autoregression tests 
+```
+
+### Import and clean data
+
+Here were are using the V-dem version 12 dataset again.
+
+Remember to make sure your working directory is set to the directory where your data file is. Check current working with `getwd()` and change if necessary with `setwd("path to data directory goes here)`, replacing with the actual with to your data directory.
+
+Note: when importing the data, only use /data if the file is in a directory within your working directory called "data". If your data file is located directly in your working ridectory simply specify the file name - "vdem12.rds"
+
+```{r, warning=FALSE}
+my_data <- readRDS("data/vdem12.rds") 
+```
+
+Let's subset our data to only include observations for the United States. For ease of interpretation, we will change the names of the two variables we will be using. This week we will also be using an urbanization variable.
+
+```{r}
+us_data <- my_data |>
+  filter(country_name == "United States of America") |> 
+  rename(democracy = v2x_polyarchy, 
+         gdp_per_capita = e_gdppc,
+         urbanization = e_miurbani)
+```
+
+## Fit Models
+
+We'll estimate the simple OLS form last week with just `gdp_per_capita` as an IV. Then we will estimate a multiple regression that adds in `urbanization` as an IV. The syntax is as simple as adding a `+` after our first IV, then listing our second IV before specifying the data. If we had more than two IVs, we would add the additional ones in the same manner.
+
+-   `lm(formula = DV ~ IV_1 + IV_2, data = your_data)`
+
+```{r}
+simple <- lm(democracy ~ gdp_per_capita, data = us_data)
+multiple <- lm(democracy ~ gdp_per_capita + urbanization, data = us_data)
+```
+
+### Model Results
+
+Now let's put the model results together in a single table. We can compare goodness-of-fit with the $R^2$, $R_{adj}^2$, and $F-Statistics$.
+
+```{r, warning=FALSE}
+stargazer(simple, multiple,
+          type = "text",
+          title = "Factors explaining democracy in the US",
+          covariate.labels = c("GDP per capita", "Urbanization"), 
+          dep.var.labels = c("Democracy"),
+          column.labels = c("Simple OLS", "Multiple OLS"),
+          ci.level = 0.95, 
+          star.cutoffs = c(0.05), 
+          notes.align = "l",
+          notes.append = FALSE,
+          notes.label = "Notes", 
+          notes = "p < 0.05. Standard errors are in parentheses.",
+          p.auto = T,
+          report = "vcsp*")
+```
+
+## Gauss-Markov Assumptions
+
+### Multicollinearity
+
+We can generate pairwise correlations to ensure our independent variables are not perfectly (or near perfectly) linearly correlated:
+
+```{r}
+us_data |> 
+  select(democracy, gdp_per_capita, urbanization) |> 
+  pairs.panels(lm = T,
+               method = "pearson")
+
+```
+
+### Heteroskedasticity
+
+One way to test for heteroskedasticity is to visually assess if the variance of the residuals appears constant. We can do this by plotting the residuals and the fitted values, which are the predicted values of Y from our model, or $\hat{y}$. If there are discernible patterns, and the residuals appear unevenly distributed around 0 (the horizontal line), this suggests heteroskedasticity.
+
+We can do this with a ggplot scatterplot (`geom_point()`) by pulling from our model object, `multiple`, and plotting the fitted values (stored as `.fitted` in our model object list) on the x-axis and our residuals (stored as `.resid`) on the y-axis. We can then add a horizontal line on $0$ with `geom_abline(slope = 0)`.
+
+```{r}
+multiple |> 
+  ggplot(aes(x = .fitted, y = .resid)) + 
+  geom_point(col = 'blue') + 
+  geom_abline(slope = 0) +
+  labs(x = "Fitted values", y = "Residuals") + 
+  theme_bw()
+```
+
+We can also use significance testing to test for heteroskedasticity with the Breusch-Pagan (BP) test. The null hypothesis of the BP test is that our residuals are homoskedastic. This with a significance level of $\alpha = 0.05$, $p < 0.05$ would lead us to reject the null of homoskedasticity, suggesting that heteroskedasticity is present.
+
+-   $H_0: \text{Residuals are homoskedastic.}$
+-   $H_1: \text{Residuals are heteroskedastic.}$
+
+The `lmtest` package has an easy fucntion for the BP test in which we simply place are model object into `bptest()`:
+
+```{r}
+bptest(multiple)
+```
+
+### Normality of Residuals
+
+To assess if our residuals are normally distributed, we can plot them in a histogram to see if they roughly follow a bell-curve. We don't need anything fancy, so let's use `hist()` from base R:
+
+```{r}
+hist(multiple$residuals)
+```
+
+We can also generate a QQ (Quantile-Quantile) plot which plots our residuals against the "theoretical quantiles" of a normal distributions. We look for major systematic deviations from the linear line. We can use `qqnorm()` to generate the qqplot from our model and `qqline()` to add the straight line:
+
+```{r}
+qqnorm(residuals(multiple), ylab = "Residuals")
+qqline(residuals(multiple))
+```
+
+### Serial/Autocorrelation
+
+Serial or autocorrelation occurs when the residuals are correlated with each other. This often occurs across time in time series data or across spatial units in cross sectional data. Out data contains annual observations for the United States, so any autocorrelation would likely be due to time.
+
+We can test for autocorrelation with the Durbin Watson (DW) test. General guidelines suggest that if $d \approx 2$, then there is no autocorrelation. If $d < 2$, then there is positive autocorrelation between the residuals and their lags. If $d > 2$, then there is negative autocorrelation. `lmtest` also has a function for the DW test. This requires we specify our model and data name in `dwtest()`.
+
+```{r}
+dwtest(multiple, data = us_data)
+```
+
+We can also look for autocrrelation in an Autocorrelation Function (ACF) plot which shows the correlation coefficient between residuals and their lags. We can use the `acf()` fuction from the `stats` package, specifying the `residuals` from our model with the `$` operator, and specifying `type = "correlation"`:
+
+```{r}
+acf(multiple$residuals, type = "correlation")
+```
