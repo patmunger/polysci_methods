@@ -168,13 +168,13 @@ qqline(residuals(multiple))
 
 Serial or autocorrelation occurs when the residuals are correlated with each other. This often occurs across time in time series data or across spatial units in cross sectional data. Out data contains annual observations for the United States, so any autocorrelation would likely be due to time.
 
-We can test for autocorrelation with the Durbin Watson (DW) test. General guidelines suggest that if $d \approx 2$, then there is no autocorrelation. If $d < 2$, then there is positive autocorrelation between the residuals and their lags. If $d > 2$, then there is negative autocorrelation. `lmtest` also has a function for the DW test. This requires we specify our model and data name in `dwtest()`.
+We can test for temporal autocorrelation with the Durbin Watson (DW) test. General guidelines suggest that if $d \approx 2$, then there is no autocorrelation. If $d < 2$, then there is positive autocorrelation between the residuals and their lags. If $d > 2$, then there is negative autocorrelation. `lmtest` also has a function for the DW test. This requires we specify our model and data name in `dwtest()`.
 
 ```{r}
 dwtest(multiple, data = us_data)
 ```
 
-We can also look for autocrrelation in an Autocorrelation Function (ACF) plot which shows the correlation coefficient between residuals and their lags. We can use the `acf()` fuction from the `stats` package, specifying the `residuals` from our model with the `$` operator, and specifying `type = "correlation"`:
+We can also look for autocorrelation in an Autocorrelation Function (ACF) plot which shows the correlation coefficient between residuals and their lags. We can use the `acf()` fuction from the `stats` package, specifying the `residuals` from our model with the `$` operator, and specifying `type = "correlation"`:
 
 ```{r}
 acf(multiple$residuals, type = "correlation")
