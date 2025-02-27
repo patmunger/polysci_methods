@@ -15,7 +15,8 @@ output: html_document
 -   Estimate model factoring out $k > 2$ categorical variable
     -   create our own dummies
     -   factor out in the model
--   Basic transformations
+- Compare estimating ordinal IV as continuous and factored out 
+-   Basic transformations (logarithmic)
 
 ## Setup
 
@@ -28,6 +29,7 @@ library(tidyverse)
 library(stargazer)  
 library(ggpubr)      
 library(broom)      
+library(dotwhisker) 
 library(PerformanceAnalytics) 
 ```
 
@@ -134,6 +136,53 @@ stargazer(mod1, mod2, type = "text")
 ```
 
 The results are the same! we can interpret the coefficients as the effects of a country (or an annual observation of the US) being an electoral democracy (as opposed to the other categories) on democracy and the effects of a country being a liberal democracy (as opposed to the other categories) on democracy. Again, this is a silly relationship theoretically since the concepts are so similar, but the intuition of the setup and interpretation is what is important here.
+
+### Ordinal Predictors 
+
+If we have an oridinal predictor, we can either treat it as continous, such that we will have a single coefficient estimate interpreted as the effects of a one unit (level) increase in the variable. We could also factor it out as we did the nomial variable. Let's do it both ways with our ordinal polarization variable and campare the results in table and a coefficient plot.
+
+```{r, warning = FALSE}
+## Ordinal vs continuous ----
+continuous <- lm(democracy ~ polarization_ordinal, data = us_data)
+ordinal <- lm(democracy ~ as.factor(polarization_ordinal), data = us_data)
+
+stargazer(continuous, ordinal, type = "text")
+```
+
+Now let's use `tidy()` to put the results of each in a common dataframe so we can project them onto a single coefficient plot for comparison. 
+```{r}
+# transform model objects into data frames
+m1_tidy <- tidy(continuous) |> 
+  mutate(model = "Continuous DV Model")
+
+# repeat for model 2
+m2_tidy <- tidy(ordinal) |> 
+  mutate(model = "Ordinal DV Model")
+
+# combine these models 
+all_models <- bind_rows(m1_tidy, m2_tidy)
+```
+
+Now let's put the results of both on a coefficient (dot and whisker) plot with the `dwplot()` function from the `dotandwhisker` package. 
+
+```{r, warning = FALSE}
+dwplot(all_models) |> 
+  relabel_predictors(c(polarization_ordinal = "Political Polarization",
+                       `as.factor(polarization_ordinal)2` = "Political Polarization \n To somewhat extent",
+                       `as.factor(polarization_ordinal)3` = "Political Polarization \n To noticeable extent",
+                       `as.factor(polarization_ordinal)4` = "Political Polarization \n To a large extent")) +
+  theme_bw() +
+  theme(plot.title = element_text(face="bold"),
+        legend.position = "bottom",
+        legend.background = element_rect(colour="grey80"),
+        legend.title.align = .5) +
+  labs(x = "Coefficient Estimate with 95% CIs", 
+       y = "", 
+       title = "Predicting democracy in the US") +
+  scale_shape_discrete(name  ="Models", breaks = c(0, 1)) + # breaks assign shapes
+  scale_colour_grey(start = .3, end = .7, name = "Models") # start/end for light/dark greys
+```
+
 
 ### Transformations
 
