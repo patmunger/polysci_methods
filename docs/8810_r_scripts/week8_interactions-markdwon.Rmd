@@ -1,0 +1,106 @@
+---
+title: 'Week 8: Interaction Terms'
+author: "Ozlem Tuncel; Patrick Munger"
+date: "Spring 2025"
+output: html_document
+---
+
+# Week 8: Interaction Terms
+
+## Agenda
+
+-   Import and clean data
+-   Estimate model with interaction between two dummy variables
+-   Estimate model with interaction between dummy and continuous variable\
+-   Display results in table
+-   Plot predictions for interactions
+
+## Setup
+
+### Load libraries:
+
+There might be some new packages here. Make sure you have them all installed before loading them.
+
+```{r}
+library(tidyverse)  
+library(stargazer)  
+library(dotwhisker) 
+library(broom)      
+library(margins)
+library(ggeffects)
+```
+
+### Import and clean data
+
+Here were are using the V-dem version 12 dataset again.
+
+Remember to make sure your working directory is set to the directory where your data file is. Check current working with `getwd()` and change if necessary with `setwd("path to data directory goes here)`, replacing with the actual with to your data directory.
+
+Note: when importing the data, only use /data if the file is in a directory within your working directory called "data". If your data file is located directly in your working ridectory simply specify the file name - "vdem12.rds"
+
+```{r, warning=FALSE}
+my_data <- readRDS("data/vdem12.rds") 
+```
+
+Now we'll subset our data and rename the relevant variables.This time we'll subset to 2000 data from all countries, rather than US data over time. This means we're working with cross sectional rather than time series data.
+
+Since We'll be needing two dichotomous variable, we'll again collapse the interval polarization variable into a binary. We'll also introduce the corruption variable, which is also a continuous interval between 0 and 1. We'll keep the continuous version of corruption and also create a dummy version by collapsing values $< 0.5$ into a $0$ (not corrupt) category and $\geq -0.5$ into a $1$ category (corrupt).
+
+For greater ease of interpretation, we will also multiply our continuous interval variables (corruption and democracy) by 100 (creating a 0 to 100 interval) such that a "one unit change" is not equal to the entire interval.
+
+```{r}
+data_2000 <- my_data |>
+  filter(year == 2000) |> 
+  rename(democracy = v2x_polyarchy, 
+         gdp_per_capita = e_gdppc,
+         urbanization = e_miurbani,          
+         polarization = v2cacamps,
+         corrupt_cont = v2lgdsadlobin) |> 
+  mutate(high_polarization = as.factor(ifelse(polarization >= -1, 1, 0))) |>
+  mutate(corrupt = as.factor(if_else(corrupt_cont < 0.5, 0, 1))) |>
+  mutate(democracy = democracy*100) |>
+  mutate(corrupt_cont = corrupt_cont*100) |>
+  dplyr::select(year, democracy, gdp_per_capita, urbanization, polarization, high_polarization, corrupt, corrupt_cont)
+```
+
+## Estimate Interaction Models
+
+We'll estimate models with the GDP per capita variable and an interaction between the polarization binary and corruption. First we'll use dummy corruption variable to demonstrate an interaction between two dummies. Then, we'll use the continuous corruption variable to demonstrate an interaction between a dummy and continuous variable.
+
+To estimate a multiplicative interaction in `lm()` we simple include the interaction variables separated by `*` instead of `+` (typically with no spaces, although the syntax is not actually space sensitive). By default, the constitutive terms will be included as well.
+
+### Two Dummies
+
+```{r}
+model_dd <- lm(democracy ~  gdp_per_capita + high_polarization*corrupt, data_2000)
+```
+
+## A Dummy and Continuous
+
+```{r}
+model_dc <- lm(democracy ~  gdp_per_capita + high_polarization*corrupt_cont, data_2000)
+```
+
+### View Results
+
+```{r, warning = FALSE}
+stargazer(model_dd, model_dc, type = "text")
+```
+
+## Prediction Plots
+
+For our interaction between the dummy and continuous variable, we can use `ggpredict()` to plot the predicted values of democracy across values of corruption with two separate lines, one when `high_polarization = 0` and one when `high_polarizatioon = 1`.
+
+```{r}
+ggpredict(model_dc, terms = c("corrupt_cont", "high_polarization")) |> 
+  plot() +
+  labs(x = "Corruption", y = "Democracy", color = "High Polarization") +
+  theme(legend.position = "bottom")
+
+```
+
+For our model with two dummies, we can use `ggpredict()` to create tables that show predicted values across the four possible combinations of our interactive variables.
+
+```{r}
+ggpredict(model_dd, terms = c("high_polarization", "corrupt"))
+```
