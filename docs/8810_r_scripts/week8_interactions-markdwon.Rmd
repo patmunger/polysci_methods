@@ -89,7 +89,7 @@ model_dc <- lm(democracy ~  gdp_per_capita + high_polarization*corrupt_cont, dat
 stargazer(model_dd, model_dc, type = "text")
 ```
 
-## Prediction Plots
+## Prediction Plots / Marginal Effects 
 
 For our interaction between the dummy and continuous variable, we can use `ggpredict()` to plot the predicted values of democracy across values of corruption with two separate lines, one when `high_polarization = 0` and one when `high_polarizatioon = 1`.
 
