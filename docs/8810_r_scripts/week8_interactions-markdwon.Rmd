@@ -96,6 +96,17 @@ For our model with two dummies, we can use `ggpredict()` to create tables that s
 ```{r}
 ggpredict(model_dd, terms = c("high_polarization", "corrupt"))
 ```
+We can visualize these four point estimates and their uncertainty by projecting them onto a dot and whisker plot. We'll save the marginal effects as an object to use with the base R `plot()` function. 
+```{r}
+pred_dd <- ggpredict(model_dd, terms = c("corrupt", "high_polarization"))
+
+plot(pred_dd) +
+  labs(title = "Marginal Effects of Corruption by Polarization",
+       x = "Corruption (binary)",
+       y = "Predicted Democracy Score",
+       color = "Polarization") +
+  theme_minimal()
+```
 
 We can make this table for our interaction between the dummy and continuous variable as well. This will show us predictions across different values of `corruption_cont` when `high_polarization` id equal to $0$ and $1$.
 
