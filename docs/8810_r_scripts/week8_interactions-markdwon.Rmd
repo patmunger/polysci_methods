@@ -69,6 +69,8 @@ We'll estimate models with the GDP per capita variable and an interaction betwee
 
 To estimate a multiplicative interaction in `lm()` we simple include the interaction variables separated by `*` instead of `+` (typically with no spaces, although the syntax is not actually space sensitive). By default, the constitutive terms will be included as well.
 
+You can also specify an interaction with `:` instead of `*` but be careful here as the use of `:` does not include constitutive terms by default. 
+
 ### Two Dummies
 
 ```{r}
