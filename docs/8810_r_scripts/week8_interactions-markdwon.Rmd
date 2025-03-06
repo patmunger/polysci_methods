@@ -89,7 +89,31 @@ model_dc <- lm(democracy ~  gdp_per_capita + high_polarization*corrupt_cont, dat
 stargazer(model_dd, model_dc, type = "text")
 ```
 
-## Prediction Plots / Marginal Effects 
+## Prediction Plots / Marginal Effects
+
+For our model with two dummies, we can use `ggpredict()` to create tables that show expected values across the four possible combinations of our interactive variables.
+
+```{r}
+ggpredict(model_dd, terms = c("high_polarization", "corrupt"))
+```
+
+We can make this table for our interaction between the dummy and continuous variable as well. This will show us predictions across different values of `corruption_cont` when `high_polarization` id equal to $0$ and $1$.
+
+```{r}
+ggpredict(model_dc, terms = c("corrupt_cont", "high_polarization"))
+```
+
+We can see it shows predictions for negative values of `corrupt_cont`. This does not make much sense to interpret, so we can specify the values we want predictions for inside `[]`. Since our variable ranges from 0 to 100, let's to intervals of 10 between those values.
+
+```{r}
+ggpredict(model_dc, terms = c("corrupt_cont [0,10,20, 30, 40, 50, 60, 70, 80, 90, 100]", "high_polarization"))
+```
+
+We see from the note in the output, the values are truncated. We can follow the instructions and include all values.
+
+```{r}
+print(ggpredict(model_dc, terms = c("corrupt_cont [0,10,20, 30, 40, 50, 60, 70, 80, 90, 100]", "high_polarization")), n = Inf)
+```
 
 For our interaction between the dummy and continuous variable, we can use `ggpredict()` to plot the predicted values of democracy across values of corruption with two separate lines, one when `high_polarization = 0` and one when `high_polarizatioon = 1`.
 
@@ -98,11 +122,4 @@ ggpredict(model_dc, terms = c("corrupt_cont", "high_polarization")) |>
   plot() +
   labs(x = "Corruption", y = "Democracy", color = "High Polarization") +
   theme(legend.position = "bottom")
-
-```
-
-For our model with two dummies, we can use `ggpredict()` to create tables that show predicted values across the four possible combinations of our interactive variables.
-
-```{r}
-ggpredict(model_dd, terms = c("high_polarization", "corrupt"))
 ```
