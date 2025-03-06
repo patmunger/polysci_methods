@@ -114,6 +114,15 @@ We see from the note in the output, the values are truncated. We can follow the 
 ```{r}
 print(ggpredict(model_dc, terms = c("corrupt_cont [0,10,20, 30, 40, 50, 60, 70, 80, 90, 100]", "high_polarization")), n = Inf)
 ```
+Let's put these into a nice stargazer table by assigning them to an object then converting it to a dataframe for use in stargazer.
+
+```{r}
+pred <- ggpredict(model_dc, terms = c("corrupt_cont [0,100,10]", "high_polarization"))
+
+pred_df <- as.data.frame(pred)
+
+stargazer(pred_df, summary = FALSE, rownames = FALSE, type = "text")
+```
 
 For our interaction between the dummy and continuous variable, we can use `ggpredict()` to plot the predicted values of democracy across values of corruption with two separate lines, one when `high_polarization = 0` and one when `high_polarizatioon = 1`.
 
