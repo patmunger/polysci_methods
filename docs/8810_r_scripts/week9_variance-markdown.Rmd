@@ -191,7 +191,7 @@ stargazer(my_model,
           notes.align = "l",
           notes.append = FALSE,
           notes.label = "Notes", 
-          notes = "Standard errors are in parentheses.")
+          notes = "Huber White robust standard errors are in parentheses.")
 ```
 
 ## Clustered Standard Errors
@@ -232,7 +232,7 @@ stargazer(my_model,
           notes.align = "l",
           notes.append = FALSE,
           notes.label = "Notes", 
-          notes = "Standard errors are in parentheses.")
+          notes = "Clustered standard errors are in parentheses.")
 ```
 
 ## All models
