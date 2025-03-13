@@ -43,7 +43,8 @@ Note: when importing the data, only use /data if the file is in a directory with
 my_data <- readRDS("data/vdem12.rds") 
 ```
 
-We'll estimate the same model as in week 6 (but cross-sectional for year 2000 instead of time series for US), so we will need the democracy, GDP, and urbanization variables. To cluster standard errors, we'll also need a region variable by which we will cluster standard errors in the final demo. 
+We'll estimate the same model as in week 6 (but cross-sectional for year 2000 instead of time series for US), so we will need the democracy, GDP, and urbanization variables. To cluster standard errors, we'll also need a region variable by which we will cluster standard errors in the final demo.
+
 ```{r}
 data_2000 <- my_data |>
   filter(year == 2000) |>
@@ -56,6 +57,7 @@ data_2000 <- my_data |>
 ```
 
 Now we'll estimate the model:
+
 ```{r}
 my_model <- lm(democracy ~ gdp_per_capita + urbanization, data = data_2000)
 ```
@@ -66,7 +68,7 @@ my_model <- lm(democracy ~ gdp_per_capita + urbanization, data = data_2000)
 
 One way to test for heteroskedasticity is to visually assess if the variance of the residuals appears constant. We can do this by plotting the residuals and the fitted values, which are the predicted values of Y from our model, or $\hat{y}$. If there are discernible patterns, and the residuals appear unevenly distributed around 0 (the horizontal line), this suggests heteroskedasticity.
 
-Let's first simulate some data to demonstrate what homoskedastcity should look like. We'll draw 1000 random values from a uniform distribution between 0 and 100 for our IV and define the DV as a linear function of our IV with intercept of $3$ and slope of $0.1$, and add some random noise from a sdandard deviation - the constant variance `sd = 3` will ensure homoskedasticity. 
+Let's first simulate some data to demonstrate what homoskedastcity should look like. We'll draw 1000 random values from a uniform distribution between 0 and 100 for our IV and define the DV as a linear function of our IV with intercept of $3$ and slope of $0.1$, and add some random noise from a sdandard deviation - the constant variance `sd = 3` will ensure homoskedasticity.
 
 ```{r}
 n <- 1000      
@@ -77,19 +79,19 @@ x <- runif(n,
 y.good <- 3 + 0.1 * x + rnorm(n, sd = 3)
 ```
 
-We'll then estimate an `lm()` with the simulated data and create a Residuals vs Fitted plot with `plot()` in which we specify our model name and set `which = 1`. This latter argument specifies which diagnostic plot to produce from an `lm()` list object. The Residuals vs Fitted plot is number 1. 
+We'll then estimate an `lm()` with the simulated data and create a Residuals vs Fitted plot with `plot()` in which we specify our model name and set `which = 1`. This latter argument specifies which diagnostic plot to produce from an `lm()` list object. The Residuals vs Fitted plot is number 1.
 
 ```{r}
 lm.good <- lm(y.good ~ x)
 plot(lm.good, which = 1) 
 ```
 
-See how the residuals are scattered around $0$ with no discernable pattern accross the range of fitted values. This is homoskedasticity. 
-
+See how the residuals are scattered around $0$ with no discernible pattern across the range of fitted values. This is homoskedasticity.
 
 Now let's try it with our model.
 
 We can also create a custom Residuals vs Fitted Plot with ggplot. To do this, we create a scatterplot (`geom_point()`) by pulling from our model object, `multiple`, and plot the fitted values (stored as `.fitted` in our model object list) on the x-axis and our residuals (stored as `.resid`) on the y-axis. We can then add a horizontal line on $0$ with `geom_abline(slope = 0)`.
+
 ```{r}
 plot(my_model, which = 1)
 
@@ -101,9 +103,9 @@ my_model |>
   theme_bw()
 ```
 
-From the plots, the variance does not appear to be constant. We suspect heteroskedasticity. Let's see if a BP test supports this suspicion 
+From the plots, the variance does not appear to be constant. We suspect heteroskedasticity. Let's see if a BP test supports this suspicion
 
-### Breusch-Pagan Test 
+### Breusch-Pagan Test
 
 We can also use significance testing to test for heteroskedasticity with the Breusch-Pagan (BP) test. The null hypothesis of the BP test is that our residuals are homoskedastic. This with a significance level of $\alpha = 0.05$, $p < 0.05$ would lead us to reject the null of homoskedasticity, suggesting that heteroskedasticity is present.
 
@@ -115,13 +117,15 @@ The `lmtest` package has an easy fucntion for the BP test in which we simply pla
 ```{r}
 bptest(my_model)
 ```
-We reject the null. Heteroskedasticity is a concern. 
 
-## Weighted Least Squares 
+We reject the null. Heteroskedasticity is a concern.
+
+## Weighted Least Squares
 
 WLS requires a vector of weights inversely proportional to the error variance. Since the actual error variance is generally unknown, we can use some theoretical representation of it, perhaps some measure of reliability in our data (reliability of experts surveyed by vdem, number of experts surveyed per country, etc.). Absent a theoretical option, we can use an approach common in economics which is to estimate error variance by regressing the squared residuals of our base model (or absolute value of residuals) on predicted values, then using the inverse of the predictions from this model as weights
 
-First let's filter out rows with NA values for any one of our variables. This will ensure the weights vector is the same length as our observations. Otherwise the WLS model will result in an error. 
+First let's filter out rows with NA values for any one of our variables. This will ensure the weights vector is the same length as our observations. Otherwise the WLS model will result in an error.
+
 ```{r}
 filtered_data <- data_2000 |> 
   filter(!is.na(democracy) & 
@@ -129,20 +133,20 @@ filtered_data <- data_2000 |>
            !is.na(urbanization))
 ```
 
-Now let's estimate the baseline model from which we will compute the weights. 
+Now let's estimate the baseline model from which we will compute the weights.
 
 ```{r}
 base_model <- lm(democracy ~ gdp_per_capita + urbanization, 
                         data = filtered_data)
 ```
 
-Now we will define the weights vector by taking the inverse of the the predictions (stored as `fitted.values`) from a model which regresses the absolute value of the residuals from our base model on the base moddel predictions. 
+Now we will define the weights vector by taking the inverse of the the predictions (stored as `fitted.values`) from a model which regresses the absolute value of the residuals from our base model on the base moddel predictions.
 
 ```{r}
 weights_vec <- 1 / lm(abs(base_model$residuals) ~ base_model$fitted.values)$fitted.values^2
 ```
 
-Now we re-estimate the model with `lm()`, adding the `weights` argument and setting it equal to our vector of weights defined above. 
+Now we re-estimate the model with `lm()`, adding the `weights` argument and setting it equal to our vector of weights defined above.
 
 ```{r}
 wls_model <- lm(democracy ~ gdp_per_capita + urbanization, 
@@ -152,28 +156,29 @@ wls_model <- lm(democracy ~ gdp_per_capita + urbanization,
 summary(wls_model)
 ```
 
-
 ## Robust Standard Errors (Huber White)
 
-The `sandwich` package provides numerous methods of estimating standard errors with. For heteroskedasticity consistent SEs we use the `vcovHC()` function (HC for Heteroskedasticity Consistent). We compute these after fitting our model. There are multiple estimators by which we can compute HC SEs. For the Huber-White estimator we set `method` to "HC0". The following syntax computes a HW HC covariance matrix of our parameter estimates. The squared diagonals of this matrix are our robust SEs. 
+The `sandwich` package provides numerous methods of estimating standard errors with. For heteroskedasticity consistent SEs we use the `vcovHC()` function (HC for Heteroskedasticity Consistent). We compute these after fitting our model. There are multiple estimators by which we can compute HC SEs. For the Huber-White estimator we set `method` to "HC0". The following syntax computes a HW HC covariance matrix of our parameter estimates. The square roots of the diagonals of this matrix are our robust SEs.
 
 ```{r}
 vcovHC(my_model, method = "HC0")
 ```
-We can use the `coeftest()` function to display a model summary with our HC SEs. 
+
+We can use the `coeftest()` function to display a model summary with our HC SEs.
 
 ```{r}
 coeftest(my_model, vcov. = vcovHC(my_model, type = "HC0"))
 ```
 
-We can also extract the SEs ourselves and save them to an object to integrate into a stargazer table. To do this, we first save the covariance matrix to an object, then square the diagonals of this matrix, saving the results as a vector object to use in stargazer. 
+We can also extract the SEs ourselves and save them to an object to integrate into a stargazer table. To do this, we first save the covariance matrix to an object, then square the diagonals of this matrix, saving the results as a vector object to use in stargazer.
 
 ```{r}
-cov_m1 <- vcovHC(my_model, mclass(rob_m1ethod = "HC0"))
+cov_m1 <- vcovHC(my_model, method = "HC0")
 rob_m1 <- sqrt(diag(cov_m1))
 ```
 
-In stargazer we include the line `se = (list(rob_m1))`.
+In stargazer r, we add the `se =` argument which expects a list of vectors of SEs - one vector per model. Since we are only creating a table for one model here, we put our single vector of robust SEs.
+
 ```{r, warning = FALSE}
 stargazer(my_model, 
           se = (list(rob_m1)), # Using our Robust SEs
@@ -181,7 +186,6 @@ stargazer(my_model,
           title = "Predictors of democracy in the US", 
           covariate.labels = c("GDP per capita", "Urbanization"),
           dep.var.labels = c("Electoral Democracy Index"),
-          report = "vcstp",
           ci.level = 0.95,
           star.cutoffs = c(0.05),
           notes.align = "l",
@@ -190,10 +194,9 @@ stargazer(my_model,
           notes = "Standard errors are in parentheses.")
 ```
 
+## Clustered Standard Errors
 
-## Clustered Standard Errors 
-
-Often in cross-sectional data, heteroskedasticity results from some grouping structure in our data. With cross-national data, this can result from geographic regions. One solution then is to cluster our standard errors by a region variable. Here I use the the `e_regionpol` variable from vdem (renamed to `region`)`. See the codebook for the included regions. 
+Often in cross-sectional data, heteroskedasticity results from some grouping structure in our data. With cross-national data, this can result from geographic regions. One solution then is to cluster our standard errors by a region variable. Here I use the the `e_regionpol` variable from vdem (renamed to `region`)\`. See the codebook for the included regions.
 
 For clustering, we can also use the `sandwich` package, this time the `vcovCL()` function. We set the `cluster` arguement equal to a tilde ($~$) followed by our cluster variable. As before, this generates the covariance matrix:
 
@@ -202,6 +205,7 @@ vcovCL(my_model, cluster = ~ country_name)
 ```
 
 This generates a model summary with clustered standard errors:
+
 ```{r}
 coeftest(my_model, vcov. = vcovCL(my_model, cluster = ~ region))
 ```
@@ -214,9 +218,10 @@ rob_m2 <- sqrt(diag(cov_m2))
 ```
 
 In stargazer:
+
 ```{r, warning = FALSE}
 stargazer(my_model, 
-          se = (list(rob_m2)), 
+          se = (list(rob_m2)), # Robust SEs 
           type = "text",
           title = "Predictors of democracy in the world", 
           covariate.labels = c("GDP per capita", "Urbanization"),
@@ -230,10 +235,18 @@ stargazer(my_model,
           notes = "Standard errors are in parentheses.")
 ```
 
-
 ## All models
 
-Let's compare the base model with the WLS, Robust, and Clustered SE models to see how standard errors (and thus p-values) are affected. We'll report the actual p-values rather than significance stars. 
+Let's compare the base model with the WLS, Robust, and Clustered SE models to see how standard errors (and thus p-values) are affected. In the `se =` argument, we will put `NULL` for the vectors of the first two models, since we did not estimate robust standard errors after fitting the models and instead want the SEs from the model object itself.
+
+We'll report the actual p-values in addition to significance stars for better comparison. We can control this with the `report =` argument. Specifically, we'll report the following:
+
+-   **v**: the variable name (or label)
+-   **c**: the coefficient estimate
+-   **s**: the standard error
+-   **t**: the t-statistic
+-   **p**: the p-value
+-   **\***: significance stars
 
 ```{r, warning = FALSE}
 stargazer(my_model, wls_model, my_model, my_model, 
@@ -246,7 +259,7 @@ stargazer(my_model, wls_model, my_model, my_model,
                             "WLS",
                             "Robust", 
                             "Clustered"),
-          report = "vcstp",
+          report = "vcstp*",
           ci.level = 0.95,
           star.cutoffs = c(0.05),
           notes.align = "l",
@@ -254,4 +267,3 @@ stargazer(my_model, wls_model, my_model, my_model,
           notes.label = "Notes", 
           notes = "Standard errors are in parentheses.")
 ```
-
