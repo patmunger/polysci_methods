@@ -1,0 +1,215 @@
+---
+title: 'Week 10: Collinearity'
+author: "Ozlem Tuncel; Patrick Munger"
+date: "Spring 2025"
+output: html_document
+---
+
+# Week 10: Collinearity
+
+## Agenda
+
+-   Import and clean data
+-   Assess the correlations between model predictors
+-   Estimate model
+-   Variance Inflation Factor
+-   Corrections
+
+## Setup
+
+### Load libraries:
+
+There might be some new packages here. Make sure you have them all installed before loading them.
+
+```{r}
+library(tidyverse)  
+library(stargazer)  
+library(dotwhisker) 
+library(broom)      
+library(lmtest)     
+library(sandwich)   
+library(car)       
+library(PerformanceAnalytics)
+```
+
+### Import and clean data
+
+Here were are using the V-dem version 12 dataset again.
+
+Remember to make sure your working directory is set to the directory where your data file is. Check current working with `getwd()` and change if necessary with `setwd("path to data directory goes here")`, replacing with the actual with to your data directory.
+
+Note: when importing the data, only use /data if the file is in a directory within your working directory called "data". If your data file is located directly in your working directory simply specify the file name - "vdem12.rds"
+
+This week, to streamline our code, we'll clean our data in the same operation in which we import it. We'll filter for just the year 2000 (meaning we'll have time cross-sectional data -- country observations), rename and select the variables we will be using.
+
+We'll `gdp_per_capita` and `urbanization` as in previous weeks. Additionally we'll include - per capita energy resource income (oil, coal, natural gas) - per capita oil resource income. - infant mortality rate - life expectancy
+
+```{r}
+cs_data <- readRDS("data/vdem12.rds") |> 
+  filter(year == "2000") |> 
+  rename(democracy = v2x_polyarchy, 
+         gdp_per_capita = e_gdppc,
+         urbanization = e_miurbani,
+         energy_income_pc = e_total_resources_income_pc,
+         oil_income_pc = e_total_oil_income_pc,
+         infant_mortality = e_peinfmor,
+         life_expectancy = e_pelifeex) |>
+  select(country_name, year, democracy, gdp_per_capita, urbanization, energy_income_pc, oil_income_pc, infant_mortality, life_expectancy)
+```
+
+We'll also create a times series dataframe of US observations which we will use later on.
+
+```{r}
+us_data <- readRDS("data/vdem12.rds") |> 
+  filter(country_name == "United States of America") |> 
+  rename(democracy = v2x_polyarchy, 
+         gdp_per_capita = e_gdppc,
+         urbanization = e_miurbani,
+         energy_income_pc = e_total_resources_income_pc,
+         oil_income_pc = e_total_oil_income_pc,
+         infant_mortality = e_peinfmor,
+         life_expectancy = e_pelifeex) |>
+  select(country_name, year, democracy, gdp_per_capita, urbanization, energy_income_pc, oil_income_pc, infant_mortality, life_expectancy)
+```
+
+## Correlations
+
+We don't need our model results for this step. We simply pull out our predictor variables from the dataframes to see how they correlate with each other.
+
+We can use `cor.test()` from the base R `stats` package. In the first two arguments, we specify out two variables, then with `method =` we specify which correlation coefficient we want. It will default to "pearson" which assumes a normal distribution, but we could also use non-parametric methods "kendall" or "spearman" which can also accommodate ordinal variables.
+
+Let's check the correlation between `oil_income_pc` and `Oil_income_pc`.
+
+```{r}
+cor.test(cs_data$energy_income_pc, cs_data$oil_income_pc, 
+    method = "pearson")
+```
+
+Now let's check `infant_mortality` and `life_expectancy`.
+
+```{r}
+cor.test(cs_data$infant_mortality, cs_data$life_expectancy, 
+    method = "pearson")
+```
+
+We can also use `chart.Correlation()` from the `PerformanceAnalytics` package to look at correlations across a series of variables.
+
+```{r}
+chart.Correlation(cs_data |> dplyr::select(democracy, 
+         gdp_per_capita,
+         urbanization,
+         energy_income_pc,
+         oil_income_pc,
+         infant_mortality,
+         life_expectancy))
+```
+
+## Estimate models
+
+Now let's estimate a couple model with these predictors. In the first we'll include the base predictors we've been using and also add in `oil_income_pc` and `Oil_income_pc`.
+
+```{r}
+resource_model <- lm(democracy ~ gdp_per_capita + urbanization  + energy_income_pc + oil_income_pc, data = cs_data)
+summary(resource_model)
+```
+
+Now let's estimate one `infant_mortality` and `life_expectancy`.
+
+```{r}
+health_model <- lm(democracy ~ gdp_per_capita + urbanization + infant_mortality + life_expectancy, data = cs_data)
+summary(health_model)
+```
+
+## Variance Inflation Factor
+
+To assess the impact of multicollinearity in our models, we can perform a a VIF with `vif()`, from the `car` package, simply adding in our model name. It will provide a score for each predictor with tells us the variance of each coefficient is inflated by the presence of collinearity with another predictor. A general rule of thumb:
+
+-   $VIF = 1$ : no multicollinearity
+-   $1 < VIF < 5$ : low multicollinearity (usually not problematic)
+-   $VIF ≥ 5$ : high multicollinearity (might be problematic)
+
+```{r}
+vif(resource_model)
+vif(health_model)
+```
+
+## Corrections
+
+### Drop a variable
+
+Of course, the easiest correction to a high VIF is to drop one of the variables, especially if it is measuring something very similar to the variable it is correlated with, and if whatever differences in measurement do exist are not theoretically important. Let's compare models that drop one of our correlated predictors.
+
+#### Resource model
+
+Re-estimate the resource model with just, dropping `oil_income_pc`.
+
+```{r}
+resource_model2 <- lm(democracy ~ gdp_per_capita + urbanization  + energy_income_pc, data = cs_data)
+```
+
+Compare VIFs:
+
+```{r}
+vif(resource_model)
+vif(resource_model2)
+```
+
+Compare model results:
+
+```{r, warning=FALSE}
+stargazer(resource_model, resource_model2, type = "text", report = "vcspt*",
+          column.labels = c("Full", "Parsimonious"))
+```
+
+Notice the change in p-value of the `energy_income_pc` coefficient.
+
+#### Health model
+
+Re-estimate the health model with just, dropping `life_expectancy`.
+
+```{r}
+health_model2 <- lm(democracy ~ gdp_per_capita + urbanization  + infant_mortality, data = cs_data)
+```
+
+Compare VIFs:
+
+```{r}
+vif(health_model)
+vif(health_model2)
+```
+
+Compare model results:
+
+```{r, warning=FALSE}
+stargazer(health_model, health_model2, type = "text", report = "vcspt*",
+          column.labels = c("Full", "Parsimonious"))
+```
+
+### taking the First Difference
+
+One correction is to take the first difference of one of our variables with a high VIF. This subtracts each value from a one row lag of the variable. Essentially the variable now measures the change from the previous period, and needs to be interpreted as such. This is only sensible with time series data (it would make no sense to lag to a different country observation). Let's try it on US time series data. We simply subtract the variable from its lag with `lag()` at `n = 1` which specifies one row lag.
+
+```{r}
+# Base R
+us_data$diff_oil <- us_data$oil_income_pc - lag(us_data$oil_income_pc, n = 1)
+
+# Tidy language
+us_data <- us_data |> 
+  mutate(diff_regime = oil_income_pc - lag(oil_income_pc, n = 1))
+```
+
+Compare:
+
+```{r}
+vif(us_model)
+vif(us_model2)
+```
+
+```{r, warning=FALSE}
+us_model <- lm(democracy ~ gdp_per_capita + urbanization  + energy_income_pc + oil_income_pc, data = us_data)
+us_model2 <- lm(democracy ~ gdp_per_capita + urbanization  + energy_income_pc + diff_oil, data = us_data)
+
+stargazer(us_model, us_model2, type = "text", report = "vcspt*",
+          column.labels = c("US Sample", "US Sample - First difference"))
+
+```
