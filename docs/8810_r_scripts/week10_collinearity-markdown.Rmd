@@ -129,7 +129,7 @@ cor.test(cs_data$half_oil, cs_data$oil_income_pc,
     method = "pearson")
 ```
 
-Model with perfect multicollinearity: 
+Model with perfect multicollinearity:
 
 ```{r}
 summary(lm(democracy ~ gdp_per_capita + urbanization  + half_oil + oil_income_pc, data = cs_data))
@@ -142,6 +142,8 @@ To assess the impact of multicollinearity in our models, we can perform a a VIF 
 -   $VIF = 1$ : no multicollinearity
 -   $1 < VIF < 5$ : low multicollinearity (usually not problematic)
 -   $VIF ≥ 5$ : high multicollinearity (might be problematic)
+-   $VIF ≥ 10$ : very high multicollinearity (problematic)
+
 
 ```{r}
 vif(resource_model)
