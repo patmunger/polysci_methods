@@ -144,7 +144,6 @@ To assess the impact of multicollinearity in our models, we can perform a a VIF 
 -   $VIF ≥ 5$ : high multicollinearity (might be problematic)
 -   $VIF ≥ 10$ : very high multicollinearity (definitely problematic)
 
-
 ```{r}
 vif(resource_model)
 vif(health_model)
@@ -154,7 +153,7 @@ vif(health_model)
 
 ### Drop a variable
 
-Of course, the easiest correction to a high VIF is to drop one of the variables, especially if it is measuring something very similar to the variable it is correlated with, and if whatever differences in measurement do exist are not theoretically important. Let's compare models that drop one of our correlated predictors.
+While this is never an approach to pursue blindly, and it is always best to try to address multicollinearity issues by increasing our sample size,, the easiest correction to a high VIF is to drop one of the variables. This is only an appropriate response if the dropped variable is measuring something very similar to the variable it is correlated with, and if whatever differences in measurement do exist are not important to our theory or to a properly specified model. Let's compare models that drop one of our correlated predictors.
 
 #### Resource model
 
@@ -202,7 +201,7 @@ stargazer(health_model, health_model2, type = "text", report = "vcspt*",
           column.labels = c("Full", "Parsimonious"))
 ```
 
-### taking the First Difference
+### Taking the First Difference
 
 One correction is to take the first difference of one of our variables with a high VIF. This subtracts each value from a one row lag of the variable. Essentially the variable now measures the change from the previous period, and needs to be interpreted as such. This is only sensible with time series data (it would make no sense to lag to a different country observation). Let's try it on US time series data. We simply subtract the variable from its lag with `lag()` at `n = 1` which specifies one row lag.
 
