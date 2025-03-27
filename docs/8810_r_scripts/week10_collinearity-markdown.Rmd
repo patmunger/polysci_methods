@@ -153,7 +153,7 @@ vif(health_model)
 
 ### Drop a variable
 
-While this is never an approach to pursue blindly, and it is always best to try to address multicollinearity issues by increasing our sample size,, the easiest correction to a high VIF is to drop one of the variables. This is only an appropriate response if the dropped variable is measuring something very similar to the variable it is correlated with, and if whatever differences in measurement do exist are not important to our theory or to a properly specified model. Let's compare models that drop one of our correlated predictors.
+While this is never an approach to pursue blindly, and it is always best to try to address multicollinearity issues by increasing our sample size,, the easiest correction to a high VIF is to drop one of the variables. This is only an appropriate response if we have no other choice or if the dropped variable is measuring something very similar to the variable it is correlated with, and if whatever differences in measurement do exist are not important to our theory or to a properly specified model. Let's compare models that drop one of our correlated predictors.
 
 #### Resource model
 
