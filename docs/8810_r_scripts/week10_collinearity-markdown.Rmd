@@ -120,6 +120,21 @@ health_model <- lm(democracy ~ gdp_per_capita + urbanization + infant_mortality 
 summary(health_model)
 ```
 
+Just to demonstrate how `lm()` reacts to perfect multicollinearity, I divide the oil variable by two, assign it to a new variable, check the correlation between the old and new variable, then try to estimate a model with both variables:
+
+```{r}
+cs_data$half_oil <- cs_data$oil_income_pc / 2
+
+cor.test(cs_data$half_oil, cs_data$oil_income_pc, 
+    method = "pearson")
+```
+
+Model with perfect multicollinearity: 
+
+```{r}
+summary(lm(democracy ~ gdp_per_capita + urbanization  + half_oil + oil_income_pc, data = cs_data))
+```
+
 ## Variance Inflation Factor
 
 To assess the impact of multicollinearity in our models, we can perform a a VIF with `vif()`, from the `car` package, simply adding in our model name. It will provide a score for each predictor with tells us the variance of each coefficient is inflated by the presence of collinearity with another predictor. A general rule of thumb:
