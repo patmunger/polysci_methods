@@ -142,7 +142,7 @@ To assess the impact of multicollinearity in our models, we can perform a a VIF 
 -   $VIF = 1$ : no multicollinearity
 -   $1 < VIF < 5$ : low multicollinearity (usually not problematic)
 -   $VIF ≥ 5$ : high multicollinearity (might be problematic)
--   $VIF ≥ 10$ : very high multicollinearity (problematic)
+-   $VIF ≥ 10$ : very high multicollinearity (definitely problematic)
 
 
 ```{r}
