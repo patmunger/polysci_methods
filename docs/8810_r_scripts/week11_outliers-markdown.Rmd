@@ -108,7 +108,7 @@ apply(dfb, 2, function(col) {
 })
 ```
 
-We see similar observations popping up as in the residual diagnostics above. 
+We see similar observations popping up as in the residual diagnostics above.
 
 We can also plot them for each predictor with the `ols_plot_dfbetas()` function from the `olsrr` package. This will also flag outliers over the $\frac{2}{\sqrt{n}}$ threshold.
 
@@ -146,13 +146,42 @@ ols_plot_cooksd_chart(cs_model)
 
 In both of these we see that out largest residual (observation $152$) is by far the most influential.
 
-
 ## Other diagnostics
+
+### COVRATIO
+
+We can get COVRATIO values for each observation with the `covratio()` function from base R. Within the function, we include the `infl =` arguement in which we get the influence of our model observations with `lm.influence()` and the `res =` arguement in which we get our model residuals with `residuals()`. 
+
+```{r}
+cov_ratios <- covratio(cs_model, 
+                       infl = lm.influence(cs_model),
+                       res = residuals(cs_model))
+cov_ratios
+```
+
+Let's look at which observations have $COVRATIO < 1$, meaning they decrease the precision of our estimates (increase S.E. estimates).
+
+```{r}
+low_covratios <- which(cov_ratios < 1)
+
+print(cov_ratios[low_covratios])
+```
+
+Now let's look at the top 10 values, those which increase the precision of our estimates (decrease S.E. estimates).
+
+```{r}
+high_covratios <- order(cov_ratios, decreasing = TRUE)[1:10]
+
+print(cov_ratios[high_covratios])
+```
+
+
+### Outlier Test
 
 the `outlierTest()` from the `car` package "Reports the Bonferroni p-values for testing each observation in turn to be a mean-shift outlier, based Studentized residuals in linear (t-tests), generalized linear models (normal tests), and linear mixed models." See [here](https://www.rdocumentation.org/packages/car/versions/3.1-3/topics/outlierTest) for documentation.
 
 ```{r}
-car::outlierTest(cs_model)
+outlierTest(cs_model, cutoff= 0.05)
 ```
 
 Again, $152$ pops up. Let's use the indexing operator (specifying the row and all columns) again to see what country observation $152$ is:
