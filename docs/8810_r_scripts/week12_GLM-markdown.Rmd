@@ -1,0 +1,133 @@
+---
+title: 'Week 12: Intro to GLM'
+author: "Patrick Munger"
+date: "Spring 2025"
+output: html_document
+---
+
+# Week 12: Intro to GLM
+
+## Agenda
+
+-   Load and Clean V-Dem Data
+-   Introduce GLM fucntion
+-   Install package from GitHub Repo
+-   Import and clean data
+-   Estimate Logit and Probit Models
+
+## Setup
+
+### Load Base Libraries
+
+```{r, warning = FALSE}
+library(tidyverse)
+library(stargazer)
+library(haven)
+```
+
+Let's load and clean the V-Dem data to estimate a model similar to last week.
+
+```{r}
+cs_data <- readRDS("data/vdem12.rds") |> 
+  filter(year == "2000") |> 
+  rename(democracy = v2x_polyarchy, 
+         gdp_per_capita = e_gdppc,
+         urbanization = e_miurbani,
+         energy_income_pc = e_total_resources_income_pc) |>
+  select(country_name, year, democracy, gdp_per_capita, urbanization, energy_income_pc) |>
+  drop_na()
+```
+
+## Estimate Models with lm() and glm()
+
+Estimate the model with `lm()`, as we have been all semester.
+
+```{r, warning = FALSE}
+lm_model <- lm(democracy ~ gdp_per_capita + urbanization + energy_income_pc, data = cs_data)
+```
+
+Now let's move into the GLM world. In addition to `lm()`, base R has a function for estimating GLMs: `glm()`. This function takes the same syntax as `lm()` but with the additional `family=` argument which allows us to generalize the linear model to other distributions besides the Gaussian (normal). We can, however, still estimate a linear model with a continuous DV with the `glm()` by specifying the "gaussian" distribution in the `family` argument (ommittting the `family` argument will also default to the Gaussian). If the model is specified the same, this should produce the same results as estimating with `lm()`. Let's see:
+
+```{r, warning = FALSE}
+glm_model <- glm(democracy ~ gdp_per_capita + urbanization + energy_income_pc, data = cs_data, family = "gaussian")
+
+stargazer(lm_model, glm_model,
+          type = "text", 
+          report = "vcstp*",
+          title = "Democracy Model with LM and GLM")
+```
+
+As we can see, the parameter and uncertainty estimates are exactly the same. The only difference is that the Log Likelihood and AIC are reported instead of $R^2$ and $Adjusted R^2$ for the GLM. As you will learn in 8830, these are more useful for model comparison in the MLE world.
+
+## GLM uses
+
+Some of the models in 8830 will use functions other than `glm()` but the first ones you will learn, for binary outcome variables, will use GLM. Let's find some good data for a binary outcome variable and try estimating a logit model `glm()`. Rather than artifically creating a binary variable from V-dem's interval measures, let's use ANES data.
+
+## Install Package from GitHub for ANES Data
+
+Most frequently used R libraries are hosted on CRAN (Comprehensive R Archive Network), which allows for an easy `install.packages()` (this accesses CRAN's repository). But some useful packages might not be on CRAN abd instead hosted on GitHub. Fortunately, there is a package on CRAN that makes installing packages from other sources like GitHub easy. This CRAN package is called `devtools`. Make sure you first have this installed with `install.packages("devtools")`. Now let's load it:
+
+```{r}
+library(devtools)
+```
+
+Now we can install packages hosted on GitHub with the `install_github()` function. All we need is the name of the GitHub user and repository. Today we will be installing a package that hosts tidied ANES data for easy import. The repo can be found here: <https://github.com/jamesmartherus/anesr>
+
+All we need is to put `"user/repo"` into the function, replacing with the actual user and repo names which are simply what comes after github.com/ in the URL. So, for this package, we install with `install_github("jamesmartherus/anesr")`
+
+Now we can load the `anesr` package to easily access ANES data from James Martherus' github.
+
+```{r}
+library(anesr)
+```
+
+### Load and Clean Data
+
+We can view available datasets in data packages by putting the quoted package name in the `package=` arguement in the `data()` function:
+
+```{r}
+data(package="anesr")
+```
+
+Now we can load the dataset into an object by putting its name into the `data()` function. Let's use the latest one, from the 2020 election. The codebook for this dataset can be accessed [here](https://electionstudies.org/wp-content/uploads/2021/07/anes_timeseries_2020_userguidecodebook_20210719.pdf).
+
+```{r}
+data(timeseries_2020)
+```
+
+Now let's select, rename, and re-code the variables we want. For the Presidential vote variable ($V202073$), we'll re-code such that a vote for trump equals $1$ and a vote for anyone else equals $0$. For the party variable ($V202064$), we'll re-code such that a Republicans are $1$ and everyone else is $0$. For Race ($V201549x$), we'll re-code white respondents to $1$ and everyone else to $0$. We'll also recode the gender variable ($V201004$) to $female = 1$ and drop non-responses for income ($V202468x$).
+
+Note, on the `vote_trump` variable, I use the `zap_labels()` function from the `haven` package to remove the labels that are sometimes attached to variables and interfere with mutations. 
+
+```{r}
+anes_2000 <- timeseries_2020 %>%
+  rename(id = V200001, # Observation ID
+         vote_trump = V202073, # Post: For Whom Did R Vote for President
+         republican = V202064, # Post: Party of Registration
+         female = V201004, # Gender 
+         income = V202468x, # Income 
+         white = V201549x) %>% # Race
+  mutate(vote_trump = ifelse(zap_labels(vote_trump) == 2, 1, 0)) %>%
+  mutate(republican = ifelse(republican == 2, 1, 0)) %>%
+  mutate(female = ifelse(female == 2, 1, 0)) %>%
+  mutate(white = ifelse(white == 1, 1, 0)) %>%
+  filter(!income %in% c(-9, -5)) %>%
+  select(id, vote_trump, republican, female, income, white)
+```
+
+## Estimate Logit and Probit 
+
+Now let's estimate a logit. For binary outcome variables in `glm()` we use `binomial()` in the `family` argument. Leaving `binomial()` empty will default to a logit. But if we specify the link function in the `link=` argument, we can switch between "logit" and "probit". Let's do both and compare. 
+
+```{r, warning = FALSE}
+logit_model <- glm(vote_trump ~ republican + female + white + income, data = anes_2000, family = binomial(link = "logit"))
+
+probit_model <- glm(vote_trump ~ republican + female + white + income, data = anes_2000, family = binomial(link = "probit"))
+
+stargazer(logit_model, probit_model,
+          type = "text", 
+          report = "vcstp*",
+          title = "Vote Choice Logit and Probit Models",
+          column.labels = c("logit", "probit"))
+```
+

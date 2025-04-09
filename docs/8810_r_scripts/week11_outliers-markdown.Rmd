@@ -10,9 +10,13 @@ output: html_document
 ## Agenda
 
 -   Import and clean data
--   Estimate models
+-   Estimate model
 -   Residuals vs Fitted plot
+- DFBETAS
 -   Cook's D
+- COVRATIO
+- Outlier Test
+- Drop outlier and re-estimate model
 
 ## Setup
 
@@ -150,7 +154,7 @@ In both of these we see that out largest residual (observation $152$) is by far 
 
 ### COVRATIO
 
-We can get COVRATIO values for each observation with the `covratio()` function from base R. Within the function, we include the `infl =` arguement in which we get the influence of our model observations with `lm.influence()` and the `res =` arguement in which we get our model residuals with `residuals()`. 
+We can get COVRATIO values for each observation with the `covratio()` function from base R. Within the function, we include the `infl =` arguement in which we get the influence of our model observations with `lm.influence()` and the `res =` arguement in which we get our model residuals with `residuals()`.
 
 ```{r}
 cov_ratios <- covratio(cs_model, 
@@ -174,7 +178,6 @@ high_covratios <- order(cov_ratios, decreasing = TRUE)[1:10]
 
 print(cov_ratios[high_covratios])
 ```
-
 
 ### Outlier Test
 
