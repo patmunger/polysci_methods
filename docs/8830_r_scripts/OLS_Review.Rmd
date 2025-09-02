@@ -16,6 +16,12 @@ Russ Luke, udated by Ozlem Tuncel (Fall 2022), adapted to Markdown with annotati
 
 This script reviews how to estimate a linear regression model in R using the lm() and glm() functions and how to implement checks for Gauss-Markov assumptions. The Gauss-Markov assumptions will be a review from 8810 and the introduction of glm() will go over again what I introduced in the last week of 8810. 
 
+## Agenda
+- Load libraries and data
+- Estimate linear model with lm() and glm(), compare
+- Test Gauss-Markov Assumptions
+- Use Robust Standard Errors
+
 ## Setup
 
 You can set your working directory here, although since this script uses data from the "datasets" package rather than data imported from your local system, it should run without setting your working directory. It is also a good idea to set up an R project for this class to more easily manage your files and working directory.
@@ -83,7 +89,7 @@ Note that the results when estimating with lm() or glm() are the same. The only 
 stargazer(lm_model, glm_model, type = "text")
 
 # Generate LaTeX code for table
-#stargazer(basic_OLS, mRate, type = "latex")
+#stargazer(lm_model, glm_model, type = "latex")
 ```
 
 
@@ -223,6 +229,7 @@ stargazer(lm_model,
           se = list(rob_m),
           ci = TRUE, df = FALSE, keep.stat = c("n"))
 ```
+
 
 
 
