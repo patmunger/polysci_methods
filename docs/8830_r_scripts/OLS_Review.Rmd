@@ -106,7 +106,7 @@ lm_model |>
 
 ### Distribution of Residuals 
 
-We want our residuals to be independently and identically distributed normally around 0. We can plot a histogram to check their distribution. We can also create a QQ plot of the residuals to check normality. 
+We want our residuals to be independently and identically distributed normally around 0. While this does not test the independence, we can plot a histogram to check the distribution of our residuals. We can also create a QQ plot of the residuals to check normality. 
 
 ```{r residuals dist}
 # Histogram
@@ -223,5 +223,6 @@ stargazer(lm_model,
           se = list(rob_m),
           ci = TRUE, df = FALSE, keep.stat = c("n"))
 ```
+
 
 
