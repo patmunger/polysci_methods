@@ -119,6 +119,14 @@ qqline(residuals(lm_model))
 
 ### Multicollinearity
 
+What happens when we have perfect multicollinearity? Let's use the original population variable (in thousands) and a transformation to the full population:
+
+```{r}
+state_data$fullpop <- state_data$Population*1000
+
+summary(lm(Murder ~ Population + Income + Illiteracy + fullpop, data = state_data))
+```
+
 To ensure that none of our independent variables are perfectly correlated, we can simply run a correlation test between each pair.
 
 ```{r corr test}
@@ -215,4 +223,5 @@ stargazer(lm_model,
           se = list(rob_m),
           ci = TRUE, df = FALSE, keep.stat = c("n"))
 ```
+
 
