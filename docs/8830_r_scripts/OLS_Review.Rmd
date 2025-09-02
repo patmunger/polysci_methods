@@ -207,7 +207,7 @@ Here the p-value for our BP test is 0.04061, meaning we reject the null of homos
 
 #### Robust Standard Errors
 
-Often times heteroskedasticity is indicative of deeper patterns or issues in our data that need to be more holistically addressed before estimating a model and interpreting results. However, there is a "quick fix" for heteroskedasticity that is often used in applied research. Below, "Robust Standard Errors" are calculated to account for heteroskedasticity. This can either inflate or deflate the SEs (and thus p-values), depending on the nature of the heteroskedasticity. Note that coefficient estimates should not change. Also note, there are numerous ways of calculating robust or "heteroskedastistic consistent" (HC) standard errors. "HC1" is a slightly adjusted version of the original HC SEs proposed by White (1980). It will generally suffice with large enough datasets. With small sample sizes, HC2 or HC3 are generally recommended as they are sensitive to the leverage of individual data points. 
+Often times heteroskedasticity is indicative of deeper patterns or issues in our data that need to be more holistically addressed before estimating a model and interpreting results. However, there is a "quick fix" for heteroskedasticity that is often used in applied research. Below, "Robust Standard Errors" are calculated to account for heteroskedasticity. This can either inflate or deflate the SEs (and thus p-values), depending on the nature of the heteroskedasticity. Note that coefficient estimates should not change. Also note, there are numerous ways of calculating robust or "heteroskedastistic consistent" (HC) standard errors. "HC0" is the original Huber-White estimator (1980). "HC1" is a slightly adjusted version of the original HC SEs proposed by Huber and White. It will generally suffice with large enough datasets. With small sample sizes, HC2 or HC3 are generally recommended as they are sensitive to the leverage of individual data points. 
 
 ```{r Robust SEs}
 # Robust standard errors
@@ -223,6 +223,7 @@ stargazer(lm_model,
           se = list(rob_m),
           ci = TRUE, df = FALSE, keep.stat = c("n"))
 ```
+
 
 
 
