@@ -1,0 +1,217 @@
+---
+title: "Linear Regression Review"
+author: "Russ Luke, Updated by Ozlem Tuncel (Fall 2022) and Patrick Munger (Fall 2024 and Fall 2025)"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Linear Regression Review
+
+### Author:
+
+Russ Luke, udated by Ozlem Tuncel (Fall 2022), adapted to Markdown with annotations by Patrick Munger (Fall 2024)
+
+## Introduction
+
+This script reviews how to estimate a linear regression model in R using the lm() and glm() functions and how to implement checks for Gauss-Markov assumptions. The Gauss-Markov assumptions will be a review from 8810 and the introduction of glm() will go over again what I introduced in the last week of 8810. 
+
+## Setup
+
+You can set your working directory here, although since this script uses data from the "datasets" package rather than data imported from your local system, it should run without setting your working directory. It is also a good idea to set up an R project for this class to more easily manage your files and working directory.
+
+This code chunk also sets global options for code chunks, sets a seed and loads the necessary libraries. Make sure they are all installed on your system first.
+
+```{r setup, include=FALSE}
+# Check your working directory
+#getwd() 
+# Specify the desired folder as your working directory
+#setwd()
+
+# Set global options for code chunks (default will be to print code in output)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+
+# Set seed for replication
+set.seed(1234)
+
+# Load libraries
+library(datasets) # Where the data comes from
+library(tidyverse) # Utility tools
+library(lmtest) # Supplemental and post-estimation tests
+library(sandwich) # Specific for the sandwich calculation of robust SE calculations
+library(stargazer) # Create tables
+library(car) # Variance Inflation Factors test
+library(psych) # pairs plot
+library(GGally) # pairs plot
+```
+
+## Data Preparation
+
+Here we load the state.x77 dataset from the datasets package and convert it into a dataframe where each row is a state and each column is a statistic from the 1970s.
+
+```{r load data}
+state_data <- data.frame(state.x77)
+```
+
+## Estimate Linear Models
+
+### With lm()
+
+First we estimate with R's function for linear models, lm(). We'll estimate the effects of a state's population, income, and illiteracy rate on its murder rate. 
+
+```{r estimate with lm}
+lm_model <- lm(Murder ~ Population + Income + Illiteracy, data = state_data)
+summary(lm_model)
+```
+
+### With glm()
+
+Now we estimate with glm(), R's function for estimating generalized linear models. The GLM generalizes the linear model to other distributions, which will become important in future weeks as we introduce non-linear models. However, a linear model can still be estimated with glm() by specifying the distribution or "family" as "gaussian" (or the normal distribution). We so so by setting the `family` function equal to `gaussian()`. We can set the link function here as well, which specifies how the response variable relates to the predictor. We can leave this blank for Gaussian or specify "idendity" (the default), meaning the mean of the response variable is directly modeled as a linear combination of the predictors, meaning the estimates will be identical to OLS
+
+```{r estimate with glm}
+glm_model <- glm(Murder ~ Population + Income + Illiteracy, 
+             family = gaussian(link = "identity"), 
+             data = state_data)
+
+summary(glm_model)
+```
+
+Note that the results when estimating with lm() or glm() are the same. The only difference is lm() returns an R\^2 and adjusted R\^2 statistic while glm() returns the Log Likelihood and AIC, statistics which are used to assess non-linear model fit. We can compare the results in a stargazer table here.
+
+```{r display results, warning=FALSE}
+# Display in console
+stargazer(lm_model, glm_model, type = "text")
+
+# Generate LaTeX code for table
+#stargazer(basic_OLS, mRate, type = "latex")
+```
+
+
+## Check Gauss-Markov Assumptions
+
+### Linearity of Relationship
+
+We can check linearity with a residuals vs fitted plot with a geom_smooth line. The line should roughly follow a horizontal line at 0. 
+
+```{r}
+lm_model |> 
+  ggplot(aes(x = .fitted, y = .resid)) + 
+  geom_point(col = 'blue') + 
+  geom_abline(slope = 0) +
+  labs(x = "Fitted values", y = "Residuals") + 
+  geom_smooth(se = FALSE, color = "#F16913", method = "loess") +
+  theme_bw()
+```
+
+
+### Distribution of Residuals 
+
+We want our residuals to be independently and identically distributed normally around 0. We can plot a histogram to check their distribution. We can also create a QQ plot of the residuals to check normality. 
+
+```{r residuals dist}
+# Histogram
+hist(lm_model$residuals)
+
+# QQ Plot
+qqnorm(residuals(lm_model), ylab = "Residuals")
+qqline(residuals(lm_model))
+```
+
+### Multicollinearity
+
+To ensure that none of our independent variables are perfectly correlated, we can simply run a correlation test between each pair.
+
+```{r corr test}
+# Correlation between Population and Income
+cor.test(state_data$Population, state_data$Income, 
+         method = c("pearson"), 
+         use = "complete.obs")
+
+# Correlation between Population and Illiteracy
+cor.test(state_data$Population, state_data$Illiteracy, 
+         method = c("pearson"), 
+         use = "complete.obs")
+
+# Correlation between Income and Illiteracy
+cor.test(state_data$Income, state_data$Illiteracy, 
+         method = c("pearson"), 
+         use = "complete.obs")
+```
+
+There are also packages that put these all together into a single figure. We have used the `pairs.panel()` function from the `psych` package before. There is also the `ggpairs()` function from the `GGally` package. 
+Let's subset to the variables in our model with `[]`. 
+```{r panels, message=FALSE}
+# Or alternatively, you can use the following:
+pairs.panels(state_data[, c("Murder","Population","Income","Illiteracy")])
+
+GGally::ggpairs(state_data[, c("Murder","Population","Income","Illiteracy")])
+
+```
+
+Another way to test for multicollinearity between predictors in with a Variance Inflation Factor (VIF) test. You are safe from multicollinearity with values below 5. About 5 and there is likely a strong correlation between the predictor and another predictor. As VIF approaches 10 or exceeds 10, concern for multicollinearity becomes greater.
+
+```{r VIF}
+# Variable inflation factor 
+# (Greater than 5 is an issue, greater than 10 is proof of multicollinearity)
+vif(lm_model)
+```
+
+### Spherical errors - residuals neither correlated with the independent variables nor one another
+
+#### No serial/autocorrelation
+
+To test that residuals are not correlated with eachother (serial or autocorrelation), we can perform a Durbin Watson test. The closer the DW statistic is to 2, the more autocorrelation is present. The p-value provides a way of categoricaly testing for autocorrelation at a given significance level, such as 0.05 (but remember p-values themselves are continuous probabilities, only the significance levels we decide on are categorical).
+
+For the DW test, the null hypothesis is that there is no autocorrelation (independent residuals). So a p-value over 0.05 (p\>0.05) means we fail to reject the null and do not find significant concern for autocorrelation If the p-value is under 0.05 (p\<0.05), we reject the null, raising concern for autocorrelation.
+
+- Note: The DW test is for autocorrelation in time series data, so does not actually make sense to use here as we have cross-sectional data. We might want to use a test for spatial autocorrelation in practice, but for demonstation purposes, I perform a DW test on this data. 
+
+```{r DW test}
+dwtest(Murder ~ Population + Income + Illiteracy,
+       data = state_data)
+```
+
+Here the p-value is 0.8759, meaning there is not significant concern for autocorrelation (it would be odd if this was significant since this is not time series data). 
+
+#### Heteroskedasticity
+
+To visually assess if our residuals are heteroskedastic (non-constant variance across x values), we can start with a fitted vs residuals plot and asses if the points appear evenly scattered across values. 
+
+```{r residual plots}
+lm_model |> 
+  ggplot(aes(x = .fitted, y = .resid)) + 
+  geom_point(col = 'blue') + 
+  geom_abline(slope = 0) +
+  labs(x = "Fitted values", y = "Residuals") + 
+  theme_bw()
+```
+
+A more objective way of testing for heteroskedasticity is with the Breusch-Pagan test. A higher BP statistic indicates stronger heteroskedasticity. Again, the p-value provides a way of categoricaly testing for heteroskedasticity at a given significance level.
+
+The null hypothesis of the Breusch-Pagan test is that the residuals are homoskedastic (constant variance). So a p-value over 0.05 (p\>0.05) means we fail to reject the null and do not find significant concern for heteroskedasticity. If the p-value is under 0.05 (p\<0.05), we reject the null, raising concern for heteroskedasticity.
+
+```{r BP test}
+# Perform Breusch-Pagan test
+bptest(lm_model)
+```
+
+Here the p-value for our BP test is 0.04061, meaning we reject the null of homoskedastic residuals, a develop a concern that our residuals are heteroskedastic.
+
+#### Robust Standard Errors
+
+Often times heteroskedasticity is indicative of deeper patterns or issues in our data that need to be more holistically addressed before estimating a model and interpreting results. However, there is a "quick fix" for heteroskedasticity that is often used in applied research. Below, "Robust Standard Errors" are calculated to account for heteroskedasticity. This can either inflate or deflate the SEs (and thus p-values), depending on the nature of the heteroskedasticity. Note that coefficient estimates should not change. Also note, there are numerous ways of calculating robust or "heteroskedastistic consistent" (HC) standard errors. "HC1" is a slightly adjusted version of the original HC SEs proposed by White (1980). It will generally suffice with large enough datasets. With small sample sizes, HC2 or HC3 are generally recommended as they are sensitive to the leverage of individual data points. 
+
+```{r Robust SEs}
+# Robust standard errors
+coeftest(lm_model, vcov = vcovHC(lm_model, "HC1"))
+
+# Calculate the 'robust' standard errors for stargazer function
+cov_m <- vcovHC(lm_model, method = "HC1")
+rob_m <- sqrt(diag(cov_m))
+
+## Presentation of Results
+stargazer(lm_model, 
+          type = "text", 
+          se = list(rob_m),
+          ci = TRUE, df = FALSE, keep.stat = c("n"))
+```
