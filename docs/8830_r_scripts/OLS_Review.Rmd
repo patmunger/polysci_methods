@@ -148,7 +148,7 @@ GGally::ggpairs(state_data[, c("Murder","Population","Income","Illiteracy")])
 
 ```
 
-Another way to test for multicollinearity between predictors in with a Variance Inflation Factor (VIF) test. You are safe from multicollinearity with values below 5. About 5 and there is likely a strong correlation between the predictor and another predictor. As VIF approaches 10 or exceeds 10, concern for multicollinearity becomes greater.
+Another way to test for multicollinearity between predictors in with a Variance Inflation Factor (VIF) test. It will provide a score for each predictor with tells us if the variance of each coefficient is inflated by the presence of collinearity with another predictor. A general rule of thumb: You are safe from multicollinearity with values below 5. About 5 and there is likely a strong correlation between the predictor and another predictor. As VIF approaches 10 or exceeds 10, concern for multicollinearity becomes greater.
 
 ```{r VIF}
 # Variable inflation factor 
@@ -215,3 +215,4 @@ stargazer(lm_model,
           se = list(rob_m),
           ci = TRUE, df = FALSE, keep.stat = c("n"))
 ```
+
