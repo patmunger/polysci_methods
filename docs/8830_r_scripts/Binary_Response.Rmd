@@ -406,9 +406,9 @@ Odds ratios are a simple compute. But since they are more interpretable than the
 stargazer(logit1, type = "text", apply.coef = exp, ci = TRUE, ci.level = 0.95)
 ```
 
-## Marginal Effects
+## Average Marginal Effects
 
-Marginal effects can help us gauge the relationship across values of our IV. They tell us how the probability of the event CHANGES (NOT the probability OF the event) at each value of 'x'. This is distrinct from ORs which are constant across the values of each predictor.
+Marginal effects can help us gauge the relationship across values of our IV. They tell us how the average probability of the event CHANGES (NOT the probability OF the event) across values of 'x'. 
 
 We can plot them here:
 
@@ -425,7 +425,7 @@ To obtain a single value, we can compute an average marginal effect (AME) by tak
 We can use the `avg_slopes` function from the `marginaleffects` package here:
 
 ```{r}
-avg_slopes(logit2, variables = "k5") # AME on the probability scale
+avg_slopes(logit2, variables = "k5") 
 
 ```
 
@@ -466,5 +466,20 @@ We can also plot the predictions with `plot_predictions()` from `marginaleffects
 ```{r}
 plot_predictions(logit2, condition = "inc")
 ```
+
+
+## Discrete Change
+
+The best way to calculate discrete change I have found is to simply calculate the predicted probabilities at two different values of x and subtracting the results:
+
+```{r}
+p1 <- predict(simple_model, data.frame(k5 = 1), type = "response")
+p2 <- predict(simple_model, data.frame(k5 = 2), type = "response")
+discrete_change <- p1 - p2
+discrete_change
+
+```
+
+
 
 
