@@ -1,0 +1,291 @@
+---
+title: "Graphs and Interactions"
+author:  
+- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu]
+- Updated by Patrick Munger^[Georgia State University, otuncelgurlek1@gsu.edu]
+date: "Fall 2023"
+output: pdf_document
+urlcolor: blue
+---
+
+# Today's agenda
+
+1.  Import ANES data and recode some variables
+2.  Run some models models
+3.  A couple different ways to make coefficient plots
+4.  Plotting interactions 
+
+# Preliminaries
+
+```{r directory, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+getwd() # Check your current working directory
+# setwd() # Set and specify your working directory to the desired folder
+```
+
+```{r set_seed, message=FALSE, warning=FALSE}
+# Specify any integer
+set.seed(1234)
+```
+
+```{r upload_library, message=FALSE, warning=FALSE}
+library(tidyverse) # Utility tools
+library(lmtest) # Supplemental and postestimation tests
+library(sandwich) # Specific for the sandwich version of robust SE calculations
+library(stargazer) # Tables
+library(car) # Companion to Applied Regression
+library(carData) # Supplemental Data
+library(aod) # For wald.test
+library(haven) # Import from Stata
+library(gmodels) # Crosstabs
+library(margins) # Fun Graphs
+library(jtools) # Fun Graphs
+library(Rcpp) # Fun Graphs tools
+library(sjPlot) # Interaction graphs
+library(interactions) # Interaction graphs
+library(dotwhisker) # DW Plot
+```
+
+Here we upload our data. In today's exercise, we are using ANES data. Since the data is saved in Rdata format, we can use load() to easily import it. Then we will select and rename the variables we want to model.
+
+```{r include=FALSE}
+load("anes2000.Rdata")
+anes2000 <- remove_labels(anes2000)
+
+# Variables in ANES data
+# "VCF0004", # Year
+# "VCF0006", # ID Number
+# "VCF0110", # Education
+# "VCF0112", # Region
+# "VCF0114", # Income
+# "VCF0210", # Labor union feeling thermometer
+# "VCF0213", # Military feeling thermometer
+# "VCF0231", # The federal government feeling thermometer
+# "VCF0310", # Political Attention
+# "VCF0613", # Political efficacy
+# "VCF0703", # Registered and Voted
+# "VCF0849", # Ideology
+# "VCF0867" # View on Affirmative Action
+
+# Subset data to use for graphs 
+graphs_data <- anes2000 %>% 
+  rename(id_number = VCF0006,
+         nonwhite = VCF0105a,
+         male = VCF0104,
+         education = VCF0110,
+         income = VCF0114,
+         democrat = VCF0301,
+         extremist = VCF0803) %>% 
+ dplyr::select(id_number, nonwhite, male, education, income, democrat, extremist)
+
+```
+
+# Data manipulation
+
+Here we re-code a few variables, excluding non-responses or 'don't knows' and restructuring a a few variables into different types.
+
+```{r include=FALSE}
+# Non-white variable (to binary variable)
+CrossTable(graphs_data$nonwhite)
+# Make changes
+graphs_data <- graphs_data %>%
+  mutate(nonwhite = case_when(
+    nonwhite == 9 ~ NA_real_,
+    nonwhite == 1 ~ 0,
+    nonwhite %in% 2:6 ~ 1,
+    TRUE ~ as.numeric(nonwhite)
+  ))
+# Check what you did
+CrossTable(graphs_data$nonwhite) 
+
+# Male variable
+CrossTable(graphs_data$male) 
+# Make changes
+graphs_data$male <- replace(graphs_data$male, graphs_data$male == 2, 0)
+# Check what you did
+CrossTable(graphs_data$male) 
+# Convert to numeric
+graphs_data$male <- as.numeric(graphs_data$male)
+
+
+# Education variable
+CrossTable(graphs_data$education) 
+# Make changes
+graphs_data$education <- replace(graphs_data$education, graphs_data$education == 0, NA)
+# Check what you did
+CrossTable(graphs_data$education)
+# Convert to numeric
+graphs_data$education <- as.numeric(graphs_data$education)
+
+# Income variable
+CrossTable(graphs_data$income) 
+# Make changes
+graphs_data$income <- replace(graphs_data$income, graphs_data$income == 0, NA)
+# Check what you did
+CrossTable(graphs_data$income) 
+# Convert to numeric
+graphs_data$income <- as.numeric(graphs_data$income)
+
+
+# Democrat vairable
+CrossTable(graphs_data$democrat) 
+# Make changes
+graphs_data <- graphs_data %>%
+  mutate(democrat = case_when(
+    democrat %in% c(2, 3) ~ 1,
+    democrat %in% c(5, 6, 7) ~ 0,
+    democrat %in% c(0, 4) ~ NA_real_,
+    TRUE ~ NA_real_  # catch-all for safety
+  ))
+# Check what you did
+CrossTable(graphs_data$democrat) 
+
+
+
+```
+
+
+# Coefficient Plots
+
+## Models
+
+Let's estimate a couple models to plot coefficients:
+
+```{r, warning=FALSE}
+# A couple of toy models to play with
+m1 <- glm(democrat ~ income + education + nonwhite + male, 
+          data = graphs_data, 
+          family = binomial(link = "logit"))
+
+m2 <- glm(democrat ~  income + education + nonwhite, 
+          data = graphs_data, 
+          family = binomial(link = "logit"))
+
+# Let's check our models
+stargazer(m1, m2, type = "text")
+
+```
+
+## Binary DV
+
+Here is the `plot_summs()` function from `jtools` package. We provide our model names, list of coefficients and labels we want to use in the `coefs` argument, then a ggtitle and xlab argument. 
+
+```{r}
+# Let's make a coefficients plot (becoming very popular way to show your results)
+plot_summs(m1, m2, 
+                 coefs = c("Income"="income", 
+                           "Education"="education", 
+                           "Person of Color" = "nonwhite", 
+                           "Male"="male")) + 
+  ggtitle("Effect of Demographics  on Likelihood of \n Democrat Partisan Identification") +
+  xlab("Logit Coefficent Estimates")
+```
+
+Here is the `dwplot()` function from the `dotwhisker` package. This function takes arguments like ggplot so we could play around with the theme and aesthetics, but let's keep it simple here, with the bw theme and an added vertical lone on 0. 
+
+```{r}
+dwplot(list(m1, m2)) +
+  labs(x = "Logit Coefficient Estimates", y = "Variables", 
+       title = "Effect of Demographicson Likelihood of \n Democrat Partisan Identification") +
+  theme_bw() +
+  geom_vline(xintercept = 0, colour = "red", linetype = 2)
+```
+
+I also realized that dwplot() is better able to handle categorical variables, where we get $k - 1$ coefficient (excluding a reference category). For example, let's factor out the education levels in our model. 
+
+```{r, warning=FALSE}
+m3 <- glm(democrat ~ income + as.factor(education) + nonwhite + male, 
+          data = graphs_data, 
+          family = binomial(link = "logit"))
+
+stargazer(m3, type = "text")
+```
+
+Let's try both functions: 
+```{r}
+plot_summs(m3, 
+                 coefs = c("Income"="income", 
+                           "Education"="education", 
+                           "Person of Color" = "nonwhite", 
+                           "Male"="male")) + 
+  ggtitle("Effect of Demographics  on Likelihood of \n Democrat Partisan Identification") +
+  xlab("Logit Coefficent Estimates")
+
+dwplot(m3) +
+  labs(x = "Logit Coefficient Estimates", y = "Variables", 
+       title = "Effect of Demographicson Likelihood of \n Democrat Partisan Identification") +
+  theme_bw() +
+  geom_vline(xintercept = 0, colour = "red", linetype = 2)
+```
+
+
+# Plotting Interaction Terms 
+
+## Example data from British Election Panel Study
+
+Info on variables found here: <https://rdrr.io/cran/carData/man/BEPS.html>
+
+```{r}
+# Upload data
+BEPS_data <- carData::BEPS
+remove_val_labels(BEPS_data)
+BEPS_data$voteCon <- ifelse(BEPS_data$vote == "Conservative", 1, 0)
+
+# Assessment of current national economic conditions, 1 to 5.
+# Assessment of current household economic conditions, 1 to 5.
+# vote Party choice: Conservative, Labour, or Liberal Democrat
+m5 <- glm(voteCon ~ economic.cond.national*economic.cond.household + age +  Europe, 
+          data = BEPS_data, 
+          family = "binomial")
+summary(m5)
+```
+
+# Plotting interactions
+
+
+
+There are few different functions/packages we can use. 
+
+The `plot_model()` from `sjPlot` follows a ggplot syntax after taking its own 'type' and 'term' arguments tro specify the type of plot (we'll do "pred" for predictions) and the intercting terms in our model. We could plot all values of national economic condition, or just these three values, which we will specify in `[]`
+
+```{r}
+plot_model(m5, 
+           type = "pred", 
+           terms = c("economic.cond.household", "economic.cond.national[1,3,5]")) +
+  scale_fill_grey(start = 0.6, end = 0.1) + 
+  scale_color_grey(start = 0.6, end = 0.1) +
+  labs(x = "Perception of Household Economic Health", 
+       y = "Predicted Probability of Voting Conservative",
+       colour = "Perception \n of National \n Economic \n Health",
+       title = "Predicted Probabilities of Respondent Casting Conservative Vote, \n at Levels of Perceived Household and National Economic Health")
+```
+Here is the `interCact_plot` from `interactions`, which takes a variable in the 'pred' argument, the variable which it interacts (or modifies it) in 'modx', the values we want to see in 'modx.values' then arguments to include a confidence interval and exclude data points. Then we can create labels as in ggplot. 
+
+```{r}
+
+# From earlier: interaction between national and household economy
+m5 <- glm(voteCon ~ economic.cond.national * economic.cond.household + age + Europe,
+          data = BEPS_data, family = binomial)
+
+interact_plot(m5,
+              pred = economic.cond.household,
+              modx = economic.cond.national,
+              modx.values = c(1, 3, 5),
+              interval = TRUE,
+              int.type = "confidence",
+              plot.points = FALSE) +
+  labs(title = "Interaction Between Household and National Economic Perceptions",
+       x = "Household Economic Condition",
+       y = "Predicted Probability of Voting Conservative")
+
+```
+
+We can also use `ggpredict()` from `ggeffects` package.
+
+```{r}
+library(ggeffects)
+p <- ggpredict(m5, c("economic.cond.household", "economic.cond.national[1, 3, 5]"))
+plot(p) + theme_bw()
+
+```
+
+Remember last semester, we looked at some ways to use `ggpredict()` to view predictions/MEs across different values of our interactions and for different variable types. Take a look back at that script (week 8 on interactions - data and script are still on the site) if you want a refresher on that. 
