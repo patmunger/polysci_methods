@@ -1,9 +1,6 @@
 ---
 title: "Graphs and Interactions"
-author:  
-- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu]
-- Updated by Patrick Munger^[Georgia State University, otuncelgurlek1@gsu.edu]
-date: "Fall 2023"
+date: "Fall 2025"
 output: pdf_document
 urlcolor: blue
 ---
@@ -289,3 +286,4 @@ plot(p) + theme_bw()
 ```
 
 Remember last semester, we looked at some ways to use `ggpredict()` to view predictions/MEs across different values of our interactions and for different variable types. Take a look back at that script (week 8 on interactions - data and script are still on the site) if you want a refresher on that. 
+
