@@ -1,6 +1,9 @@
 ---
 title: "Graphs and Interactions"
-date: "Fall 2025"
+author:  
+- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu]
+- Updated by Patrick Munger^[Georgia State University, otuncelgurlek1@gsu.edu]
+date: "Fall 2023"
 output: pdf_document
 urlcolor: blue
 ---
@@ -40,6 +43,7 @@ library(Rcpp) # Fun Graphs tools
 library(sjPlot) # Interaction graphs
 library(interactions) # Interaction graphs
 library(dotwhisker) # DW Plot
+library(labelled) # function to clean up Stata labels
 ```
 
 Here we upload our data. In today's exercise, we are using ANES data. Since the data is saved in Rdata format, we can use load() to easily import it. Then we will select and rename the variables we want to model.
@@ -135,9 +139,6 @@ graphs_data <- graphs_data %>%
   ))
 # Check what you did
 CrossTable(graphs_data$democrat) 
-
-
-
 ```
 
 
@@ -258,11 +259,6 @@ plot_model(m5,
 Here is the `interCact_plot` from `interactions`, which takes a variable in the 'pred' argument, the variable which it interacts (or modifies it) in 'modx', the values we want to see in 'modx.values' then arguments to include a confidence interval and exclude data points. Then we can create labels as in ggplot. 
 
 ```{r}
-
-# From earlier: interaction between national and household economy
-m5 <- glm(voteCon ~ economic.cond.national * economic.cond.household + age + Europe,
-          data = BEPS_data, family = binomial)
-
 interact_plot(m5,
               pred = economic.cond.household,
               modx = economic.cond.national,
@@ -284,6 +280,3 @@ p <- ggpredict(m5, c("economic.cond.household", "economic.cond.national[1, 3, 5]
 plot(p) + theme_bw()
 
 ```
-
-Remember last semester, we looked at some ways to use `ggpredict()` to view predictions/MEs across different values of our interactions and for different variable types. Take a look back at that script (week 8 on interactions - data and script are still on the site) if you want a refresher on that. 
-
