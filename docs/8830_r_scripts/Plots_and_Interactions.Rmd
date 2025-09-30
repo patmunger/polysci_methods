@@ -280,3 +280,21 @@ p <- ggpredict(m5, c("economic.cond.household", "economic.cond.national[1, 3, 5]
 plot(p) + theme_bw()
 
 ```
+
+Remember last semester, we looked at some ways to use `ggpredict()` to view predictions/MEs across different values of our interactions and for different variable types. Take a look back at that script (week 8 on interactions - data and script are still on the site) if you want a refresher on that. 
+
+Another way to plot a two-way interaction between two continuous predictors (without having to select only certain levels of the mpderating variable) is to plot Johnson Neyman intervals. These tell us "the range of values of the moderator in which the slope of the predictor is significant vs. nonsignificant at a specified alpha level" (see documentation [here](https://cran.r-project.org/web/packages/interactions/readme/README.html). 
+
+The `interactions` package gives us a nice easy `johnson_neyman()` function which takes our model name, first predictor in the interaction ('pred'), the moderating variable ('modx') and alpha level. We should not try to interpret the slope values on the y-axis, especially as these are log odds (logit), but from the plot, we can interpret the range of the moderating variable in which the interaction is significant. 
+
+```{r}
+jn <- johnson_neyman(
+  m5,
+  pred = "economic.cond.national",
+  modx = "economic.cond.household",
+  alpha = 0.05
+)
+jn       
+```
+Here the effects of national conditions on the probability of voting conservative are significantly negative when household conditions are greater than about 1. Thus, higher national economic evaluations is associated with lower odds of voting Conservative, conditional on higher household evaluations.
+
