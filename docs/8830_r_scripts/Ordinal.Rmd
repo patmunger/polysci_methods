@@ -1,0 +1,377 @@
+---
+title: "Ordinal Model"
+author: "Patrick Munger"
+date: "Fall 2024"
+output: html_document
+---
+
+# Agenda
+
+1.  Estimate ordinal logit models (function `polr` from `MASS` package)
+2.  Testing assumptions (Brandt for Proportional Odds)
+3.  Estimate models that relax assumption (`clm` and `vglm`)
+4.  Compute and plot predicted probabilities (function `ggpredict` from `ggeffects` package)
+5.  Compute and plot Average Marginal Effects (function `avg_slopes` from `marginaleffects` package)
+
+# Preliminaries
+
+```{r include=FALSE}
+# Set seed for replicability
+set.seed(1234)
+```
+
+```{r include=FALSE}
+# Load necessary libraries
+library(tidyverse)        # Data manipulation and plotting
+library(stargazer)        # LaTeX tables
+library(MASS)             # For polr function
+library(brant)            # For Brant test
+library(ggeffects)        # For marginal effects and predictions
+library(carData)          # Built-in datasets (including WVS)
+library(marginaleffects)  # For computing marginal effects 
+library(car)              # For PoTest
+library(ordinal)          # For cumulative link model 
+library(VGAM)             # For generalized ologit 
+library(sjPlot)           # For results table with p-values 
+```
+
+# Data
+
+```{r}
+# Load the World Values Survey data from carData package 
+data("WVS", package = "carData")
+world_values <- WVS
+
+# Check the dataset
+summary(world_values)
+
+# WVS: World Values Survey
+# - poverty: Ordered outcome of "Do you think what the government is doing for poverty is about right, too much, or too little?" 
+#   1 = Too Little, 2 = About Right, 3 = Too Much
+# - religion: Member of a religion: 1 = no, 2 = yes
+# - degree: Held a university degree: 1 = no, 2 = yes
+# - country: Australia(1), Norway(2), Sweden(3), USA(4)
+# - age: Continuous variable
+# - gender: 1 = female, 2 = male
+
+# Check variable types to makes sure they are appropriate
+# We need to make sure our ordinal variables are in fact ordered 
+str(world_values)
+```
+
+# Estimate Model
+
+Now we estimate an ordered logit with the `polr()` function from the `MASS` package. We will estimate the effects of religion (binary), country (4 categories - Australia as reference), age (discrete numeric), and gender (binary) on the opinion on government poverty alleviation efforts (3 levels).
+
+Syntax for specifying the model is very similar to `lm()` or `glm()`. Note that `Hess = TRUE` indicates that we want to variance-covariance matrix to be returned with the model (or technically the Hessian matrix, which is the inverse of the variance-covariance matrix in MLE). This is necessary for uncertainty estimates - so we will need this to get standard errors or p-values. Generally, if will "re-fit to get Hessian" even without thus arguement, but there is no harm in including it, and it might be necessary for some later functions.
+
+```{r}
+# Running the Ordered Logit Model
+world_values_fit <- polr(poverty ~ religion + degree + country + age + gender, 
+                         data = world_values, Hess = TRUE)
+
+# Summarizing the model results - this will return standard errors
+summary(world_values_fit)
+```
+
+## P-values and Stars
+
+To get significance stars, we can create a stargazer table of model results
+
+```{r warning=FALSE}
+stargazer(world_values_fit, type = "text")
+```
+
+We can also get a results table in image format that prints p-values (to 3 decimal places) with the `tab_model` function from `SJPlot` package. We can also set the `transform =` argument to "exp" to get odds ratios instead of log odds.
+
+```{r}
+tab_model(world_values_fit, show.ci = FALSE, show.se = TRUE, transform = NULL)
+```
+
+We can also follow a basic statistical workflow to compute p-values from our coefficient estimates and $SEs$. This is sometimes a good practice to refresh our understanding of the relation between uncertainty estimates.
+
+First we'll pull out the reults sith summary, then extract the coeficients, standard erros, and t-values (sometimes calles a z-value or z-statistic in MLE as with large samples, even though the population SE is unknown, estimates are aproximately normal, rather than t-distribution) into a table with `coef()`, then put that table into an object "ctable".
+
+The t-values (or z) here are just our betas divided by their standard errors:
+
+$t-value = \frac{\hat{\beta}}{SE(\hat{\beta})}$
+
+```{r}
+summary_fit <- summary(world_values_fit)
+ctable <- coef(summary_fit)
+ctable
+```
+
+We can use `pnorm()` to get the area under the normal curve (cumulative probability) up to a point. That point will be the absolute value (as we care about "at least as extreme" in either direction) of our t-values. We'll calculate the upper tail (`lower.tail=FALSE`) cumulative probability to get the tail beyond our scores then multiply by 2 to make it two-tailed.
+
+```{r}
+p_values <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+p_values
+```
+
+Now let's bind them to `ctable` object:
+
+```{r}
+ctable <- cbind(ctable, "p value" = round(p_values, 3))
+ctable
+```
+
+This p-value workflow comes from [here](https://rpubs.com/KamonratS/GLMLabs)
+
+# Parallel Lines (Proportional Odds) Assumption
+
+## Brand Test for Assumption Violations
+
+While this assumption is sometimes ignored, for an unbiased ologit, is is necessary that the effects of each IV on the DV be constant across the levels of the DV. So in our case the effect of any one of our IVs should be the same moving from "Too Little" to "About Right" as it is moving from "About Right" to "Too little". Theoretically, we can imagine why this assumption would very often be violated. We can use the Brandt test from the `Brandt` package or the Proportional Odds test from the `car` package to test this assumption globally and for each predictor. The Omnibus statistic is the global test for the whole model. Underneath is for each predictor.
+
+$H_0$: Proportional Odds Assumption holds\
+$H_1$: Proportional Odds Assumption does not hold
+
+So, significant p-values indicate that the assumption is violated for the whole model (for omnibus) or for specific predictors. It looks like the assumption is violated globally and for our religion and country variable.
+
+```{r}
+# Brant Test 
+brant_test <- brant(world_values_fit)
+brant_test
+```
+
+These two tests perform the same function, but I find `poTest()` more informative as it returns the betas for the predictors differentiated across cutpoints. This lets us see how the test assess if there are statistically significant differences between the betas at the different levels. Generally we see that larger $X^2$ statistics and smaller p-values have more consistent betas across the cutpoints.
+
+```{r}
+# Proportional Odds Test
+poTest(world_values_fit)
+```
+
+## Models for Relaxing the Assumption
+
+### Cumulative Link Model
+
+One model for relaxing the PO assumption is the cumulative link function. This model allows effects to vary across DV categories for specified IVs but will not explicitly model separate betas across cutpoints. Instead it adjusts the cutpoints (thresholds) themselves for the specified variables. We can estimate this model with `clm()` from the `ordinal` package. The variables for which the PO assumption should be relaxed, we specify with with `nominal = ~` argument.
+
+The mechanics of the model are explained [here](https://cran.r-project.org/web/packages/ordinal/vignettes/clm_article.pdf)
+
+```{r}
+# Fit a cumulative link model
+world_values_clm <- clm(poverty ~ degree + age + gender, 
+               nominal = ~ religion + country, 
+               data = world_values)
+
+summary(world_values_clm)
+```
+
+You will see that with the `clm`, the variables we identified as having non-proportional effects will not be estimated for beta coefficients. Instead, separate threshold coefficients are estimates.
+
+I was unable to get these threshold coefficients to print with p-values or significance stars in a stargazer table, but here's a way I found with the `broom` and `sjPlot` packages:
+
+```{r}
+# Extract threshold coefficients
+thresholds <- summary(world_values_clm)$alpha
+
+# Extract the coefficients for IVs
+coefs <- coef(summary(world_values_clm))
+
+# Combine them into one table
+combined_results <- rbind(coefs, thresholds)
+
+# Print the combined table
+print(combined_results)
+
+```
+
+```{r}
+library(broom)
+
+# Tidy the model results
+tidy_clm <- tidy(world_values_clm)
+
+# Print the tidy table with coefficients and thresholds
+print(tidy_clm)
+
+```
+
+By default `sjPlot` will exponentiate the coefficients into odds ratios. To get the raw coefficents (log odds) we can include the `transform = NULL` arguement. For assessing direction and significance of the effects we will look at the log odds
+
+```{r}
+library(sjPlot)
+# Create a table with both coefficients and threshold estimates
+tab_model(world_values_clm, transform = NULL)
+```
+
+The threshold coefficients for variables violating the proportional odds assumption adjust the location of the cutpoints for specific levels of the IVs. For instance:
+
+-   The statistically significant and negative log odds for `About Right|Too Much.religionyes` (-0.29) indicates that the cutpoint separating "About Right" and "Too Much" shifts down for people who identify with a religion. *From What I understand*, this means religious people are more likely to perceive poverty as "Too Much" rather than "About Right" compared to people without religious affiliation.
+
+-   The statistically significant and positive log odds for `About Right|Too Much.countryNorway` (1.79) indicates that the cutpoint separating "About Right" and "Too Much" shifts up for Norwegians as opposed to the baseline Australians category. This means Norwegians are less likely to move from "About Right" to "Too Much\* as compared to Australians.
+
+So remember, these threshold shifts don’t represent direct effects of the predictoron the outcome, like slope coefficients do. Instead, they represent how the boundaries between levels of the outcome shift depending on the category of a non-parallel predictor. Given this, we can see that while we could use technically use continuous variables in nominal, it would be difficult to interpret the cutpoint estimates in a meaningful way.
+
+### Generalized Ologit
+
+An alternative approach to modeling non-proportional odds is a generalized ordinal model that will explicitly estimate and print separate betas for the different cutpoints (just two in our case, as we have a 3-level DV) for the variables in which we relax the assumption. We can estimate this model with `vglm()` from the `VGAM` package. We include all our predictors, then specify the ones for which the proportional odds assumption is MET with `family = cumulative(parallel = )`.
+
+Note the warning messages for convergence issues. In fact, when we include age as a parallel variable, the model fails to estimate. So while the approach would be more interpratable for continuous violaters of PO, it has convergence issues.
+
+```{r}
+world_values_gologit <- vglm(poverty ~ religion + degree + country + age,
+                             family = cumulative(parallel = ~ degree + gender),
+                             data = world_values)
+
+summary(world_values_gologit)
+```
+
+
+
+# Predicted Probabilities
+
+Predicted probabilities tell us the predicted probabilities of each level of our DV occuring at different values of our IVs.
+
+## Generate Probabilities
+
+To compute Predicted Probabilities, we can use the `ggpredict()` fuction from the `ggeffects` package. For simplicity, it makes since to specify which variable we want to view the PPs for with the 'term' argument. By default, the other variables will be held at their mean (for numeric) and their mode (for factor), but we can also specify certain levels of the other variables if we wish.
+
+```{r}
+# Fetch predicted probabilities across levels of "religion" (binary IV)
+religion_pred <- ggpredict(world_values_fit, terms = "religion")
+religion_pred
+```
+
+```{r}
+# Predicted probabilities across levels of "degree" (binary IV)
+degree_pred <- ggpredict(world_values_fit, terms = "degree")
+degree_pred
+```
+
+```{r}
+# Predicted probabilities across levels of "country" (categorical IV)
+country_pred <- ggpredict(world_values_fit, terms = "country")
+country_pred
+```
+
+```{r}
+# Predicted probabilities for a continuous variable (age)
+age_pred <- ggpredict(world_values_fit, terms = "age")
+age_pred
+```
+
+It defaults to fetching PPs for every 10 years of age, but we can specify our own values:
+
+```{r}
+# Generate predicted probabilities for specific ages (e.g., 25, 35, 45, and 55)
+age_pred2 <- ggpredict(world_values_fit, terms = "age [25, 35, 45, 55]")
+age_pred2
+```
+
+Here is how we can manually set the levels that other IVs are held at with thw `condition` arguement:
+
+```{r}
+# Set other IVs to specific values, rather than being held at their mean (continuous) or mode (factor)
+# Set religion to "yes", gender to "female", and country to "USA"
+age_pred_custom <- ggpredict(world_values_fit, 
+                             terms = "religion", 
+                             condition = c(degree = "yes", gender = "female", country = "USA"))
+age_pred_custom
+```
+
+## Plot Probabilities
+
+We can use R's `plot()` function to plot the probabilities we got from with `ggpredict`. Since we have a 3-level DV, each IV will produce 3 plots, labeled by level of the DV. These plots will look different for factor and numeric IVs.
+
+```{r}
+# Plot predicted probabilities for "religion"
+plot(religion_pred) +
+  labs(title = "Predicted Probabilities of Poverty Opinion by Religion",
+       x = "Religion", 
+       y = "Predicted Probability")
+
+# Plot predicted probabilities for "degree"
+plot(degree_pred) +
+  labs(title = "Predicted Probabilities of Poverty Opinion by Degree",
+       x = "Degree", 
+       y = "Predicted Probability")
+
+# Plot predicted probabilities for "country"
+plot(country_pred) +
+  labs(title = "Predicted Probabilities of Poverty Opinion by Country",
+       x = "Country", 
+       y = "Predicted Probability")
+
+# Plot predicted probabilities for "age" with confidence intervals
+plot(age_pred) +
+  labs(title = "Predicted Probabilities of Poverty Opinion by Age",
+       x = "Age", 
+       y = "Predicted Probability")
+```
+
+# Average Marginal Effects (AMEs)
+
+Marginal effects tell us the change in predicted probabilities for a change in our IV. For continuous IVs, this is the partial derivative of the predicted probability with respect to the IV. For categorical variables, it is the change in the predicted probability as we move from one category to the other.
+
+# Compute AMEs
+
+We can use the `marginaleffects` package to compute marginal effects for each of our predictors. We can use the `slopes()` function to get the effects across all observations, but this will take R a long time and be completely overwhelming to interpret. Instead, we can use `avg_slopes()` to compute average marginal effects. The will average the marginal effects across all observations.
+
+```{r}
+# Compute AMEs for the entire model
+meffects <- avg_slopes(world_values_fit)
+meffects
+```
+
+```{r}
+# Compute AMEs for religion
+ames_religion <- avg_slopes(world_values_fit, variables = "religion")
+ames_religion
+```
+
+```{r}
+# Compute AMEs for Degree
+ames_degree <- avg_slopes(world_values_fit, variables = "degree")
+ames_degree
+```
+
+```{r}
+# Compute AMEs for Age
+ames_age <- avg_slopes(world_values_fit, variables = "age")
+ames_age
+```
+
+```{r}
+# Compute AME for Country
+ames_country <- avg_slopes(world_values_fit, variables = "country")
+ames_country
+```
+
+## Plot AMEs
+
+We can use `ggplot()` to plot our AMEs.
+
+```{r}
+# Plot Religion
+ggplot(ames_religion, aes(x = group, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_point(size = 4, color = "blue") +   # Plot the point estimate
+  geom_errorbar(width = 0.2, color = "blue") +  # Add error bars for the confidence intervals
+  labs(title = "Average Marginal Effects of Religion on Poverty Opinion",
+       x = "Poverty Opinion Category",
+       y = "Average Marginal Effect") +
+  theme_minimal()  
+
+# Plot Degree
+ggplot(ames_degree, aes(x = group, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_point(size = 4, color = "blue") +   # Plot the point estimate
+  geom_errorbar(width = 0.2, color = "blue") +  # Add error bars for the confidence intervals
+  labs(title = "Average Marginal Effects of Degree on Poverty Opinion",
+       x = "Poverty Opinion Category",
+       y = "Average Marginal Effect") +
+  theme_minimal()  
+
+# Plot Age
+ggplot(ames_age, aes(x = group, y = estimate, ymin = conf.low, ymax = conf.high)) +
+  geom_point(size = 4, color = "blue") +   # Plot the point estimate
+  geom_errorbar(width = 0.2, color = "blue") +  # Add error bars for the confidence intervals
+  labs(title = "Average Marginal Effects of Age on Poverty Opinion",
+       x = "Poverty Opinion Category",
+       y = "Average Marginal Effect") +
+  theme_minimal()  
+
+```
+
+Note, we can also plot for the country variable, but I was unable to produce a plot that neatly color coded the bars for each country pairing.
