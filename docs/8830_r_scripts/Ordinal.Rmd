@@ -93,6 +93,7 @@ world_values_fit <- polr(poverty ~ religion + degree + country + age + gender,
 # Summarizing the model results - this will return standard errors
 summary(world_values_fit)
 ```
+Notice, the output displays two intercepts - these are out two cutpoints or $\tau$. We will have as many cutpoints as one less than our number of DV categories ($1-m$) . 
 
 ## P-values and Stars
 
@@ -394,3 +395,4 @@ ggplot(ames_age, aes(x = group, y = estimate, ymin = conf.low, ymax = conf.high)
 ```
 
 Note, we can also plot for the country variable, but I was unable to produce a plot that neatly color coded the bars for each country pairing.
+
