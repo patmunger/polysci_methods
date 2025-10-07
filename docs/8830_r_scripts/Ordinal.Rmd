@@ -37,6 +37,8 @@ library(sjPlot)           # For results table with p-values
 
 # Data
 
+First we'll load the World Values Survey Data from the `car` package.
+
 ```{r}
 # Load the World Values Survey data from carData package 
 data("WVS", package = "carData")
@@ -44,19 +46,37 @@ world_values <- WVS
 
 # Check the dataset
 summary(world_values)
+```
 
-# WVS: World Values Survey
-# - poverty: Ordered outcome of "Do you think what the government is doing for poverty is about right, too much, or too little?" 
-#   1 = Too Little, 2 = About Right, 3 = Too Much
-# - religion: Member of a religion: 1 = no, 2 = yes
-# - degree: Held a university degree: 1 = no, 2 = yes
-# - country: Australia(1), Norway(2), Sweden(3), USA(4)
-# - age: Continuous variable
-# - gender: 1 = female, 2 = male
+Each observation of `poverty` is a survey response on a question about poverty.
 
-# Check variable types to makes sure they are appropriate
-# We need to make sure our ordinal variables are in fact ordered 
+"Do you think what the government is doing for poverty is about right, too much, or too little?"
+
+The possible outcomes of `poverty` are:
+
+1.  Too Little
+2.  About Right
+3.  Too Much
+
+Some variables we will use as predictors:
+
+-   `religion`: Member of a religion: 1 = no, 2 = yes
+-   `degree`: Held a university degree: 1 = no, 2 = yes
+-   `country`: Australia(1), Norway(2), Sweden(3), USA(4)
+-   `age`: discrete year count
+-   `gender`: 1 = female, 2 = male
+
+Let's check the variables with `str()`
+
+```{r}
 str(world_values)
+```
+
+We need to make sure `poverty` is ordered in the `str()` output, since it will be the DV in an ologit l=model. In this case, it is already ordered ("Ord.factor). If not were not, we would want to run:
+
+```{r}
+# world_values$poverty <- factor(world_values$poverty, 
+#                               levels = c("Too Little", "About Right", "Too Much"))
 ```
 
 # Estimate Model
@@ -90,15 +110,15 @@ tab_model(world_values_fit, show.ci = FALSE, show.se = TRUE, transform = NULL)
 
 We can also follow a basic statistical workflow to compute p-values from our coefficient estimates and $SEs$. This is sometimes a good practice to refresh our understanding of the relation between uncertainty estimates.
 
-First we'll pull out the reults sith summary, then extract the coeficients, standard erros, and t-values (sometimes calles a z-value or z-statistic in MLE as with large samples, even though the population SE is unknown, estimates are aproximately normal, rather than t-distribution) into a table with `coef()`, then put that table into an object "ctable".
+First we'll pull out the reults with `summary()`, then extract the coeficients, standard errors, and t-values (sometimes calles a z-value or z-statistic in MLE as with large samples, even though the population SE is unknown, estimates are aproximately normal, rather than t-distribution) into a table with `coef()`, then put that table into an object "ctable".
 
 The t-values (or z) here are just our betas divided by their standard errors:
 
 $t-value = \frac{\hat{\beta}}{SE(\hat{\beta})}$
 
 ```{r}
-summary_fit <- summary(world_values_fit)
-ctable <- coef(summary_fit)
+summary_mod <- summary(world_values_fit)
+ctable <- coef(summary_mod)
 ctable
 ```
 
@@ -163,6 +183,7 @@ You will see that with the `clm`, the variables we identified as having non-prop
 
 I was unable to get these threshold coefficients to print with p-values or significance stars in a stargazer table, but here's a way I found with the `broom` and `sjPlot` packages:
 
+
 ```{r}
 # Extract threshold coefficients
 thresholds <- summary(world_values_clm)$alpha
@@ -218,8 +239,6 @@ world_values_gologit <- vglm(poverty ~ religion + degree + country + age,
 
 summary(world_values_gologit)
 ```
-
-
 
 # Predicted Probabilities
 
