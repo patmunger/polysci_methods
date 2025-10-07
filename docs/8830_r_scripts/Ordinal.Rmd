@@ -335,6 +335,7 @@ We can use the `marginaleffects` package to compute marginal effects for each of
 meffects <- avg_slopes(world_values_fit)
 meffects
 ```
+Let's have a look at specific predictors. These will show how a one-unit change in a predictor affect the probability of being in each outcome category, holding other variables constant.
 
 ```{r}
 # Compute AMEs for religion
@@ -395,4 +396,5 @@ ggplot(ames_age, aes(x = group, y = estimate, ymin = conf.low, ymax = conf.high)
 ```
 
 Note, we can also plot for the country variable, but I was unable to produce a plot that neatly color coded the bars for each country pairing.
+
 
