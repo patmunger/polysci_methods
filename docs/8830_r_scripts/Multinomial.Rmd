@@ -363,6 +363,8 @@ hmftest(mlogit_model_Y, mlogit_model_Y_noA)
 
 The null hypothesis is that the IIA assumption is met.
 
+I have not been able to find a function for the Small-Hsiao test in any active version of an R-package.
+
 ## Probit model
 
 The probit can help relax the IIA assumption but it is computationally intensive and takes forever to fit!!
@@ -383,4 +385,23 @@ load("probit_results.Rdata")
 stargazer(mlogit_model_Y, m_probit, type = "text")
 ```
 
-Note: There is a 'clogit()`function in the`survival\` package for estimating conditional fixed effects logit, but I was unable to get it to fit to this data (it was returning only NAs for the parameter estimates).
+## Conditional Logit
+
+There is a 'clogit()`function in the`survival\` package for estimating conditional fixed effects logit, but I was unable to get it to fit to this data (it was returning only NAs for the parameter estimates).
+
+## Nested Logit
+
+```{r}
+# Fit the nested logit model, creating a nest for A and U and a nest for Y and N
+nested_model <- mlogit(vote ~ 0 | age + male + income | 0, 
+                       data = idxData,
+                       nests = list(
+                         Abstain_Undecided = c("A", "U"),  # Nest 1
+                         Yes_No = c("Y", "N")              # Nest 2
+                       ))
+
+# Summarize the model
+summary(nested_model)
+```
+I will not try to get into the nested logit interpretation here, but [here](https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=https://jdemeritt.weebly.com/uploads/2/2/7/7/22771764/unordered_multiresponse2.pdf&ved=2ahUKEwjvlIbc16SQAxX24MkDHWC9KOAQFnoECAQQAQ&usg=AOvVaw0ncV58vPtEvap-u65kQsBT) is the best explanation I have found.
+
