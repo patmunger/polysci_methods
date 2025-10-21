@@ -1,0 +1,365 @@
+---
+title: "Hazard Models"
+author:
+- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu], updated: Patrick
+    Munger
+date: "Fall 2024"
+output:
+  html_document:
+    df_print: paged
+urlcolor: blue
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+
+*Survival/Hazard/Duration/Event History models are complex and are courses of there own in some
+disciplines and programs. We'll review the basics, but here are some
+more in depth resources:*
+
+[Event History Modeling: A Guide for Social Scientists by
+Box-Steffensmeier and
+Jones](https://www.amazon.com/Event-History-Modeling-Scientists-Analytical/dp/0521546737?asin=0521546737&revisionId=&format=4&depth=1)
+
+[Emily Zabor's
+guideline](https://www.emilyzabor.com/tutorials/survival_analysis_in_r_tutorial.html)
+
+[Great source of diagnostic
+interpretation](https://shariq-mohammed.github.io/files/cbsa2019/1-intro-to-survival.html#61_model_fit)
+[Interpreation](https://stats.oarc.ucla.edu/stata/seminars/stata-survival/)
+[Interpreation2](https://bioconnector.github.io/workshops/r-survival.html#kaplan-meier_plots)
+
+[Hazard Ratio
+interpretation](http://onbiostatistics.blogspot.com/2020/05/interpreting-hazard-ratio-can-we-say.html)
+[Parametric
+Nonparametric](https://www.mayo.edu/research/documents/parametric-and-nonparametric-demystifying-the-terms/doc-20408960)
+[Survival
+basics](http://www.sthda.com/english/wiki/survival-analysis-basics)
+[Parametric
+nonparametric](https://boostedml.com/2018/11/when-should-you-use-non-parametric-parametric-and-semi-parametric-survival-analysis.html)
+
+# Agenda
+1.  [Today's breast cancer
+    data](https://rdrr.io/cran/survival/man/rotterdam.html)
+2.  R script to run Cox Proportional Hazards Model
+3.  Test assumptions
+4.  Replication trial
+
+# Preliminaries
+
+```{r set_seed, eval=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+# Specify any integer
+set.seed(1234)
+```
+
+```{r}
+library(tidyverse) ## Utility tools
+library(ggsurvfit) # Plotting
+library(survival) # Base survival models
+library(survminer) # Some graphics support
+library(stargazer) ## Tables
+library(car) # Companion to Applied Regression
+library(carData) # Supplemental Data
+library(gmodels) # Crosstabs
+library(Formula)
+library(reshape2)
+library(eha) # Extensions of survival
+```
+
+# Upload data
+
+We are using a dataset on [breast
+cancer](https://rdrr.io/cran/survival/man/rotterdam.html).
+
+For `survival` package, we need to first identify key variables for our
+analysis, specifically the time variable and the event or
+failure variable. 
+
+In this case, our time variable is `dtime`, which is a count of days (I assume) from the start of the trial to death or last follow up. Our survival variable is `death`, a binary indicating if the patient dies during the trial. 
+
+We use *Surv()* function to identify these variables and create an outcome, we'll call `status`. 
+
+```{r}
+rott <- survival::rotterdam # Loading in the data
+status <- Surv(rott$dtime, rott$death) # Creating an 'outcome' variable
+
+str(rott)
+rott$size <- as.numeric(rott$size) # Data cleaning 
+```
+
+# Cox PH Models
+
+```{r}
+cox_m1 <- coxph(status ~ chemo + size + age, data=rott)
+summary(cox_m1)
+
+```
+
+
+Variables with positive coefficients are associated with increased
+hazard and decreased survival times, i.e. as the predictor increases the
+hazard of the event increases and the predicted survival duration
+decreases. Negative coefficients indicate decreased hazard and increased
+survival times. In our case chemo treatment, size of the tumor, and age
+increase the hazard and decrease the survival time.
+
+Why would chemo decrease survival times in our sample?
+
+HR=1 : No effect HR\>1: Increase in hazard HR\<1: Decrease in hazard
+
+The exp(coef) column contains the hazard ratio – the multiplicative
+effect of that variable on the hazard rate. For instance, one unit
+increase in the tumor size leads to 1.8-fold increase in hazard.
+
+# Graph the whole model
+
+A Kaplan-Meier curve is an estimate of survival probability at each
+point in time (given survival up until that point). It has very few
+assumptions and is a purely descriptive method. However, it does not
+provide any information on the effect of covaraites.
+
+We can produce it with the `survfit()` function, adding confidance bands and some other information in the second plot. 
+
+```{r}
+survfit(cox_m1, data = rott) %>% 
+  ggsurvfit() 
+
+# Let's make it fancier
+survfit(cox_m1, data = rott) %>% 
+  ggsurvfit() +
+  labs(x = "Days to death or last follow-up",
+       y = "Overall survival probability") +
+  scale_x_continuous(breaks = seq(0, 7043, by = 365)) +
+  add_confidence_interval() +
+  add_risktable()
+```
+At risk: how many patients are still alive and un-censored at that point.
+Events: cumulative deaths at that point. 
+
+# Using survplot to see how covariates affect the outcome
+
+Creating data for survplot
+
+```{r}
+chemo_data <- with(rott,                            
+               data.frame(age = rep(mean(age),2),
+                          chemo = c(0, 1),
+                          size =  c(2, 2)))
+```
+
+Plotting to asses the effects of chemo
+
+```{r}
+ggsurvplot(survfit(cox_m1, newdata = chemo_data), 
+           data = chemo_data,
+           palette = "uchicago",
+           surv.median.line = "hv",
+           conf.int = T,
+           legend.labs = c("Chemo not received", "Chemo received"),
+           break.x.by = 365,
+           break.y.by = 0.1)
+```
+
+If we take chemo treatment into account we see that after a certain
+point in time, there is a clear divergence in terms of survival
+probability.
+
+
+# Let's take age and chemo into account by ploting survival probabilities for 25 and 75 year olds, with and without chemo, holding tumor size at its median. 
+
+```{r}
+age_data <- with(rott,
+                 data.frame(age = c(25, 25, 75, 75),
+                             chemo = c(0, 1, 0, 1),
+                             size = rep(mean(size), 4)))
+
+ggsurvplot(survfit(cox_m1, newdata = age_data), 
+           data = age_data, 
+           palette = "uchicago",
+           conf.int = T,      
+           legend.labs = c("Age=25\nChemo=0", "Age=25\nChemo=1", 
+                           "Age=75\nChemo=0", "Age=75\nChemo=1" ),
+           break.x.by = 365,
+           break.y.by = 0.1,
+           surv.median.line = "hv")
+```
+
+Age matters a lot in probability of survival from breast cancer. Older
+people have lower chance of living with or without chemo treatment
+compared to younger people.
+
+Let's take tumor size into account, holding age at its mean.
+
+```{r}
+size_data <- with(rott,                            
+                  data.frame(age = rep(mean(age),6),
+                             chemo = c(0, 0, 0, 1, 1, 1),
+                             size =  c(1, 2, 3, 1, 2, 3)))
+
+# Creating the survplot
+ggsurvplot(survfit(cox_m1, 
+                   newdata = size_data), 
+           data = size_data, 
+           conf.int = T,  
+           palette = "uchicago",
+           legend.labs = c("Chemo=0\nSize=1", "Chemo=0\nSize=2", "Chemo=0\nSize=3",
+                         "Chemo=1\nSize=1", "Chemo=1\nSize=2", "Chemo=1\nSize=3"),
+           break.x.by = 365,
+           break.y.by = 0.1,
+           surv.median.line = "hv")
+```
+
+Size of the tumor matter a lot as well. Bigger tumors are likely to lead
+to lower survival probability.
+
+# Checking the proportional hazard assumption
+
+In principle, the Schoenfeld residuals are independent of time. Coviariats are assumed to proportionally affect the hazard rate over time. A plot
+that shows a non-random pattern against time is evidence of violation of
+the PH assumption. If a covariate breaks the assumption, it is time dependent. 
+
+We can test this post-estimation with `cox.zph()`. The null is that the assumption is met. 
+So, a rejection of the null (p \< 0.05), suggests that the proportional hazards assumption
+is violated for that covariate. 
+
+```{r}
+cox.zph(cox_m1)
+```
+
+Systematic departures from a horizontal line are indicative of
+non-proportional hazards, since proportional hazards assumes that
+estimates β1,β2,β3 do not vary much over time. We can visualize this with Schoenfeld plots:
+
+```{r}
+ggcoxzph(cox.zph(cox_m1))
+```
+
+# Picking a distribution
+
+
+"Weibull distribution might appear curvilinear in the log versus time
+plot, but will be linear in a loglog plot ln[− ln S(t)]"
+
+"Exponential distribution will appear linear in both plots, and have a
+slope equal to 1 in the loglog plot"
+
+## Log(survival time) against time:
+
+```{r}
+sfit1 <- survfit(cox_m1) 
+sum1 <- summary(sfit1, times = rott$dtime)
+f1 <- log(surv) ~ (time)
+t1 <- as.data.frame(sum1[c("time", "surv")])
+
+fit.lm1 <- lm(f1, t1)
+plot(f1, t1)
+abline(fit.lm1)
+```
+
+Derivation from linearity suggests that hazard rate may not be constant
+over time (as assumed by exponential model)
+
+## Log(-log(survival time) against log(time):
+
+```{r}
+
+sfit2 <- survfit(cox_m1) 
+sum2 <- summary(sfit2, times = rott$dtime)
+f2 <- log(-log(surv)) ~ log(time)
+t2 <- as.data.frame(sum2[c("time", "surv")])
+
+# Add a small offset to prevent extreme survival values from causing issues
+t2$surv <- ifelse(t2$surv == 1, 0.999999, t2$surv)
+t2$surv <- ifelse(t2$surv == 0, 0.000001, t2$surv)
+
+fit.lm1 <- lm(f2, t2)
+plot(f2, t2)
+abline(-10, 1)
+```
+
+
+# Shifting to fully parameterized
+
+Fully parameterized models specifiy the form of the baseline hazard. We can use the `survreg()` function and specify a distribution. 
+
+```{r, warning=FALSE}
+w1 <- survreg(status ~ chemo + size + age, data = rott, dist = "weibull")
+e1 <- survreg(status ~ chemo + size + age, data = rott, dist = "exponential")
+
+stargazer(w1, e1, type = "text")
+
+stargazer(w1, e1 , 
+          type = "text", 
+          column.labels = c(w1$dist, e1$dist),
+          add.lines=list(c("Log(scale)", signif(log(w1$scale),3), signif(log(e1$scale),3)),
+                         c("Scale", signif(w1$scale,3), signif(e1$scale,3)),
+                         c("")
+          )
+)
+```
+
+The shape parameter is not returned in the summary, but we can get it by
+taking the inverse of the scale parameter:
+
+```{r}
+scale_param <- w1$scale
+shape_param <- 1 / scale_param
+shape_param
+```
+
+A shape parameter over 1 suggests an increasing hazard rate over time, under 1 suggests decreasing. 
+
+## Comparison graph (from eha package)
+
+Close alignment suggest Weibull is a good fit.
+
+```{r}
+status <- Surv(rott$dtime, rott$death) 
+rott$size <- as.numeric(rott$size) 
+
+# Cox regression 
+cox <- coxreg(status ~ meno + grade + age, data = rott) 
+# PH regression, standard is weibull
+phw <- phreg(status ~ meno + grade + age, data = rott)  
+
+check.dist(cox, phw) 
+```
+
+## Weibull version
+
+The function rweibull(n, shape, scale) generates a sample of 10,000
+observations from a Weibull distribution. When the shape parameter is
+set to 1, it will converge to an exponential distribution.
+
+```{r}
+sample1 <- as.data.frame(rweibull(10000, 1, 1))
+names(sample1) <- "Weibull"
+head(sample1)
+
+sample1 %>% 
+  ggplot(aes(x = Weibull)) +
+  geom_density(size = 1.2, color = "red") + 
+  theme_minimal() + 
+  labs(x = "Values", y = "Density") 
+
+```
+
+## Exponential version
+
+```{r}
+sample2 <- as.data.frame(rexp(10000, 1))
+names(sample2) <- "Exponential"
+head(sample2)
+
+sample2 %>% 
+ggplot(aes(x = Exponential)) +
+  geom_density(size = 1.2, color = "blue") + 
+  theme_minimal() + 
+  labs(x = "Values", y = "Density") 
+```
+
+
+
+
+
