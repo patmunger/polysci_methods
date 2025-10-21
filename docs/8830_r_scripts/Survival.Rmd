@@ -78,7 +78,7 @@ For `survival` package, we need to first identify key variables for our
 analysis, specifically the time variable and the event or
 failure variable. 
 
-In this case, our time variable is `dtime`, which is a count of days (I assume) from the start of the trial to death or last follow up. Our survival variable is `death`, a binary indicating if the patient dies during the trial. 
+In this case, our time variable is `dtime`, which is a count of days from the start of the trial to death or last follow up. Our survival variable is `death`, a binary indicating if the patient dies during the trial. 
 
 We use *Surv()* function to identify these variables and create an outcome, we'll call `status`. 
 
@@ -360,6 +360,7 @@ ggplot(aes(x = Exponential)) +
   theme_minimal() + 
   labs(x = "Values", y = "Density") 
 ```
+
 
 
 
