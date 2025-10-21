@@ -1,9 +1,8 @@
 ---
-title: "Hazard Models"
+title: "Survival/Duration/Hazard Models"
 author:
-- Ozlem Tuncel^[Georgia State University, otuncelgurlek1@gsu.edu], updated: Patrick
-    Munger
-date: "Fall 2024"
+- Ozlem Tuncel; Patrick Munger
+date: "Fall 2025"
 output:
   html_document:
     df_print: paged
@@ -360,6 +359,7 @@ ggplot(aes(x = Exponential)) +
   theme_minimal() + 
   labs(x = "Values", y = "Density") 
 ```
+
 
 
 
