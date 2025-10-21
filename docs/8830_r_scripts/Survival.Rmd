@@ -40,11 +40,13 @@ basics](http://www.sthda.com/english/wiki/survival-analysis-basics)
 nonparametric](https://boostedml.com/2018/11/when-should-you-use-non-parametric-parametric-and-semi-parametric-survival-analysis.html)
 
 # Agenda
-1.  [Today's breast cancer
-    data](https://rdrr.io/cran/survival/man/rotterdam.html)
+1.  Load [breast cancer
+    data](https://rdrr.io/cran/survival/man/rotterdam.html) from
+    Rotterdam tumor bank
 2.  R script to run Cox Proportional Hazards Model
 3.  Test assumptions
-4.  Replication trial
+4.  Weibull and Exponential
+5.  Replication trial
 
 # Preliminaries
 
@@ -358,6 +360,7 @@ ggplot(aes(x = Exponential)) +
   theme_minimal() + 
   labs(x = "Values", y = "Density") 
 ```
+
 
 
 
