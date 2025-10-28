@@ -6,7 +6,6 @@ output:
     df_print: paged
 urlcolor: blue
 ---
-
 # Today's agenda
 
 1.  Estimate Poisson Model with GLM
@@ -40,7 +39,7 @@ lapply(required_pkgs, function(pkg) {
 })
 ```
 
-Library: 
+Library:
 
 ```{r}
 library(tidyverse) ## Utility tools
@@ -150,37 +149,19 @@ By accounting for overdispersion Negative Binomial models will result in higher 
 To account for this overdispersion, we can estimate a negative binomial with the same function, specifying `negative.binomial` as the family. We have to set the `theta` (dispersion parameter) value. For moderate overdispersion, 1 is usually an appropriate value, and I noticed little change in estimates when I played around with the value. For higher overdispersion, higher values might be appropriate. There are also ways of estimating theta from the data, but this often leads to convergance issues. Setting it to a specified value makes it easier for the optimization algorithm to estimate coefficients.
 
 ```{r}
-nb2 <- glm(number_of_victims ~ number_of_perpetrators +  scale(GDP) + 
+nb1 <- glm(number_of_victims ~ number_of_perpetrators +  scale(GDP) + 
                       GDP_Growth + Trade_Perc_GDP + Mineral_Rents_Perc, 
                       data = combo.df[combo.df$type_of_attack == 3,], 
                       family = negative.binomial(theta = 1))
 
 summary(nb1)
-stargazer(nb2, nb1, type = "text")
+stargazer(nb1, type = "text")
 ```
-
-There are a couple of options for estimating a negative binomial that converges on theta via MLE rather that requiring a constant value. One is `glm.nb()` from the `MASS` package, but I was unable to get it to converge on this sample/specification. Another option is the `glmmTMB` (Template Model Builder) package that was released just two weeks ago (October 13, 2025). Te package has a lot of tools for random effects models, but I a found it effective at estimating our negative binomial without a set theta, with no convergence issues. The basic function is `glmmTMB()` with family set to `nbinom2(link = "log)`. 
-
-See package documentation and instructions [here](https://share.google/iFhrA5aWZQ4Mi3dDZ). 
-
-It seems stargazer does not recognize the output from this function, at least not yet. As a new release, an update may eventually accommodate it. For now, we can try other table functions or manually specify output in stargazer (subbing in estimates from above model, for example) if we need a latex table. 
-
-```{r}
-tmb_nb <- glmmTMB(
-  number_of_victims ~ number_of_perpetrators + scale(GDP) + GDP_Growth +
-    Trade_Perc_GDP + Mineral_Rents_Perc,
-  family = nbinom2(link = "log"),
-  data = combo.df[combo.df$type_of_attack == 3,]
-)
-summary(tmb_nb)
-stargazer(tmb_nb, type = "text")
-```
-
 
 ## Model Comparison
 
 ```{r}
-stargazer(p1, nb1, type = "text")
+stargazer(nb1, tmb_nb, type = "text")
 ```
 
 In this case, significance levels are unaffected, but we can see that standard errors do inflate going from the Poisson to the Negative Binomial.
@@ -194,6 +175,27 @@ lrtest(p1, nb1)
 ```
 
 The highly significant p-value suggests that the Negative Binomial is a significantly better fit to the data than the Poisson. Since overdispersion was present, this is expected.
+
+## Other functions for NB Model
+
+There are a couple of options for estimating a negative binomial that converges on theta via MLE rather that requiring a constant value. One is `glm.nb()` from the `MASS` package, but I was unable to get it to converge on this sample/specification. Another option is the `glmmTMB` (Template Model Builder) package that was released just two weeks ago (October 13, 2025). Te package has a lot of tools for random effects models, but I a found it effective at estimating our negative binomial without a set theta, with no convergence issues. The basic function is `glmmTMB()` with family set to `nbinom2(link = "log)`.
+
+See package documentation and instructions [here](https://share.google/iFhrA5aWZQ4Mi3dDZ).
+
+It seems stargazer does not recognize the output from this function, at least not yet. As a new release, an update may eventually accommodate it. For now, we can try other table functions or manually specify output in stargazer (subbing in estimates from above model, for example) if we need a latex table.
+
+```{r}
+tmb_nb <- glmmTMB(
+  number_of_victims ~ number_of_perpetrators + scale(GDP) + GDP_Growth +
+    Trade_Perc_GDP + Mineral_Rents_Perc,
+  family = nbinom2(link = "log"),
+  data = combo.df[combo.df$type_of_attack == 3,]
+)
+summary(tmb_nb)
+stargazer(tmb_nb, type = "text")
+```
+
+
 
 # Zero-inflation model
 
@@ -243,7 +245,7 @@ stargazer(zip1, type = "text")
 
 ## Zero-inflation negative-binomial
 
-For a zero-inflated negative binomial, we set `dist =` to "negbin". No theta specification required. Note that the stargazer output contains the first stage (logit) estimates. 
+For a zero-inflated negative binomial, we set `dist =` to "negbin". No theta specification required. Note that the stargazer output contains the first stage (logit) estimates.
 
 ```{r, warning=FALSE}
 
@@ -256,9 +258,10 @@ zib1 <- zeroinfl(number_of_victims ~ number_of_perpetrators + scale(GDP) + GDP_G
 summary(zib1)
 stargazer(zib1, type = "text")
 ```
-## Full Comparison 
 
-Note, first stage estimates (logit) are output for zero-inflated models. 
+## Full Comparison
+
+Note, first stage estimates (logit) are output for zero-inflated models.
 
 ```{r, warning=FALSE}
 stargazer(p1, nb1, zip1, zib1, type = "text")
@@ -279,9 +282,10 @@ ggpredict(p1, terms = c("GDP"))
 
 ggpredict(p1, terms = c("number_of_perpetrators")) 
 ```
-Obviously, the negative values for both these variables are not meaningful. 
 
-By default, the other predictors are held at their mean or median values. We can specify certain levels as we have done with predicted probabilities and marginal effects. 
+Obviously, the negative values for both these variables are not meaningful.
+
+By default, the other predictors are held at their mean or median values. We can specify certain levels as we have done with predicted probabilities and marginal effects.
 
 ```{r}
 ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]")) 
@@ -289,4 +293,5 @@ ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]"))
 ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]")) %>% plot
 
 ```
+
 
