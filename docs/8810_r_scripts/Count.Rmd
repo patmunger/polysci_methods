@@ -1,0 +1,292 @@
+---
+title: "Week 10 - Count Models"
+date: "Fall 2025"
+output:
+  html_document:
+    df_print: paged
+urlcolor: blue
+---
+
+# Today's agenda
+
+1.  Estimate Poisson Model with GLM
+2.  Test for overdispersion
+3.  Estimate Negative Binomial with GLM
+4.  Estimate zero-inflation models
+5.  Plot Predicted Counts
+
+# Preliminaries
+
+```{r directory, eval=FALSE, message=FALSE, warning=FALSE}
+getwd() # Check your current working directory
+# setwd() # Set and specify your working directory to the desired folder
+```
+
+```{r set_seed, eval=FALSE, message=FALSE, warning=FALSE}
+# Specify any integer
+set.seed(1234)
+```
+
+Function to install needed packages (if not already uninstalled):
+
+```{r}
+required_pkgs <- c("tidyverse", "stargazer", "car", "carData", "gmodels", 
+                   "sandwich", "lmtest", "MASS", "pscl", "AER", 
+                   "glmmTMB", "ggeffects")
+
+lapply(required_pkgs, function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
+  library(pkg, character.only = TRUE)
+})
+```
+
+Library: 
+
+```{r}
+library(tidyverse) ## Utility tools
+library(stargazer) ## Tables
+library(car) # Companion to Applied Regression
+library(carData) # Suppleme Data
+library(gmodels) # Crosstabs
+library(sandwich) # Robust standard errors
+library(lmtest)
+library(MASS) # glm.nb
+library(pscl) # zeroinfl
+library(AER)
+library(ggeffects)
+library(glmmTMB)
+```
+
+# Upload data
+
+```{r}
+load("terrorism_data.Rdata")
+```
+
+We are going to run several models. The dependent variable is the number of victims from bombing and explosions from terrorism data (Global Terrorism Database, 2000-2019).
+
+# Count models
+
+Count models are used for dependent variables in which each observation represents the number of times an event occurred within that temporal/spatial unit. Count variables can be modeled with OLS, but are ofter better modeled with distributions other than the normal, since count variables cannot take on negative values, and their distributions are often concentrated towards lower counts.
+
+Count models are typically modeled with either the Poisson or Negative Binomial distribution:
+
+-   Poisson Model – assumes "equidispersion" represented by the conditional mean equaling the conditional variance. Also assumed independence of observations (occurance of an event should not be correlated with occurance of future events). In practice, these assumptions are often violated.
+
+-   Negative binomial regression – Accounts for overdispersion (conditional mean not equaling conditional variance) with inclusion of a dispersion parameter (alpha).
+
+Another issue with in count models, is the poor fit of a model when there are a high number of zeros (observations where no events occurred). Standard Poisson and Negative Binomial models tend to greatly underpredict these zeros. One solution is the zero-inflated count model:
+
+-   The zero-inflated count model introduces a two-stage modeling process: first outcomes that are never zero or not never zero are modeled with a logit or probit. Then the outcomes that are not never (but still can be zero) are modeled with Poisson or Negative Binomial.
+
+# Poisson Model with GLM
+
+The `glm` syntax is as usual, with the `family` argument set to `"poisson"`.
+
+-   In calling the data, we subset the `type_of_attack` variable to only include bombing/explosion attacks, assuming this is our theoretical interest.
+
+    -   As a syntax exercise, I do this in the model with the base R subset function. This is often the cleanest approach if we wish to estimate a series of models for different subsets of a variable, rather than creating new variables for each subset prior to model estimation.
+
+-   Note on the GDP variable: Scale function subtracts the values of each column by the matching “center” value from the argument. $xscaled = (x – mean_x) / s$ where: `x` is the real x-value, `mean_x` is the Sample mean, and `s` is the sample SD. This is also known as data standardization, and it basically involves converting each original value into a z-score. It is used to improve convergence in models that are sensitive to the scale of certain predictors with a high variance like GDP. Another option is to log the variable.
+
+```{r, warning=FALSE}
+# Using GLM function
+p1 <- glm(number_of_victims ~ number_of_perpetrators + scale(GDP) + 
+                      GDP_Growth + Trade_Perc_GDP + Mineral_Rents_Perc, 
+                      data = combo.df[combo.df$type_of_attack == 3,], 
+                      # subset: 3 = Bombing/Explosion
+                      family = "poisson") 
+
+summary(p1)
+stargazer(p1, type = "text")
+```
+
+Recall that the dependent variable is a count variable, and Poisson regression models the log of the expected count as a function of the predictor variables. We can interpret the Poisson regression coefficient as follows: for a one unit change in the predictor variable, the difference in the logs of expected counts is expected to change by the respective regression coefficient, given the other predictor variables in the model are held constant.
+
+The first column named Estimate is the coefficient values of $\alpha$ (intercept), $\beta_1$ and so on. Following is the interpretation for the parameter estimates:
+
+1.  exp($\alpha$)= effect on the mean $\mu$, when X = 0
+
+2.  exp($\beta$) = with every unit increase in X, the predictor variable has multiplicative effect of exp($\beta$) on the mean of Y, that is $\mu$.
+
+# Interpreting p1 model
+
+-   The coefficient for `number_of_perpetrators` is 0.006, which means that for each additional perpetrator, the expected log count of victims increases by 0.006.
+
+-   The coefficient for `Mineral_Rents_Perc` is -0.529, meaning that a one-unit increase in `Mineral_Rents_Perc,` the expected log count of victims decreases by 0.529.
+
+We can exponentiate these coefficients for more intuitive reading.
+
+```{r}
+# Substantive interpretation
+exp(p1$coefficients)  
+```
+
+-   The exponentiated coefficient for `number_of_perpetrators` is 1.006, which means that each additional perpetrator is associated with a **0.6% increase** in the expected count of victims ( calculated as $(exp(coefficent)-1)*100$).
+
+-   The exponentiated coefficient for `Mineral_Rents_Perc` is 0.59, meaning that a one-unit increase in `Mineral_Rents_Perc` is associated with a **41% decrease** in the expected count of victims (calculated as $(exp(coefficent)-1)*100$).
+
+# Dispersion test
+
+An assumption of the Poisson model is equidispersion of the outcome, wherein the conditional variance equals the conditional mean. If this assumption is violated, we have overdispersion or underdispersion, and are likely to estimate spurious results.
+
+We can check the dispersion in a fit Poisson model with `dispersiontest()`. This calculates the dispersion of the model by comparing the observed variability in the data to what the Poisson model would expect. Specifically, it examines the residuals (differences between observed and predicted values) to see if the data's spread is larger or smaller than anticipated.
+
+-   `alternative` arguement: a character string specifying the alternative hypothesis: "greater" tests for overdispersion, "less" tests for underdispersion and "two.sided" tests for dispersion in either direction. Let's test for overdispersion, as this is more frequently encountered.
+
+```{r}
+dispersiontest(p1, alternative = "greater") # only works for poisson models
+```
+
+Interpretation: With `alternative` set to `"greater"`, a significant p-value suggests we are dealing with overdispersion.
+
+Given that p-value is statistically significant, our model is likely overdispersed. Although our coefficient estimates may still be valid, the model’s standard errors are likely deflated, leading to potentially spurious results.
+
+# Negative Binomial Model with GLM
+
+In a Poisson model, overdispersion will bias SEs downward, leading to smaller p-values and a higher chance of spurious results and rejecting a true null hypothesis (type 1 error)\
+By accounting for overdispersion Negative Binomial models will result in higher SEs.
+
+To account for this overdispersion, we can estimate a negative binomial with the same function, specifying `negative.binomial` as the family. We have to set the `theta` (dispersion parameter) value. For moderate overdispersion, 1 is usually an appropriate value, and I noticed little change in estimates when I played around with the value. For higher overdispersion, higher values might be appropriate. There are also ways of estimating theta from the data, but this often leads to convergance issues. Setting it to a specified value makes it easier for the optimization algorithm to estimate coefficients.
+
+```{r}
+nb2 <- glm(number_of_victims ~ number_of_perpetrators +  scale(GDP) + 
+                      GDP_Growth + Trade_Perc_GDP + Mineral_Rents_Perc, 
+                      data = combo.df[combo.df$type_of_attack == 3,], 
+                      family = negative.binomial(theta = 1))
+
+summary(nb1)
+stargazer(nb2, nb1, type = "text")
+```
+
+There are a couple of options for estimating a negative binomial that converges on theta via MLE rather that requiring a constant value. One is `glm.nb()` from the `MASS` package, but I was unable to get it to converge on this sample/specification. Another option is the `glmmTMB` (Template Model Builder) package that was released just two weeks ago (October 13, 2025). Te package has a lot of tools for random effects models, but I a found it effective at estimating our negative binomial without a set theta, with no convergence issues. The basic function is `glmmTMB()` with family set to `nbinom2(link = "log)`. 
+
+See package documentation and instructions [here](https://share.google/iFhrA5aWZQ4Mi3dDZ). 
+
+It seems stargazer does not recognize the output from this function, at least not yet. As a new release, an update may eventually accommodate it. For now, we can try other table functions or manually specify output in stargazer (subbing in estimates from above model, for example) if we need a latex table. 
+
+```{r}
+tmb_nb <- glmmTMB(
+  number_of_victims ~ number_of_perpetrators + scale(GDP) + GDP_Growth +
+    Trade_Perc_GDP + Mineral_Rents_Perc,
+  family = nbinom2(link = "log"),
+  data = combo.df[combo.df$type_of_attack == 3,]
+)
+summary(tmb_nb)
+stargazer(tmb_nb, type = "text")
+```
+
+
+## Model Comparison
+
+```{r}
+stargazer(p1, nb1, type = "text")
+```
+
+In this case, significance levels are unaffected, but we can see that standard errors do inflate going from the Poisson to the Negative Binomial.
+
+### LR Test
+
+We can also perform a Likelihood Ratio test between the Poisson and Negative Binomial.
+
+```{r}
+lrtest(p1, nb1)
+```
+
+The highly significant p-value suggests that the Negative Binomial is a significantly better fit to the data than the Poisson. Since overdispersion was present, this is expected.
+
+# Zero-inflation model
+
+For count variables with a high rate of zeros (more than 40-50% especially), a standard Poisson or Negative Binomial will be a poor fit and the model will underpredict zeros.
+
+Here is some code for inspecting the number of zero and non-zero observations and the ratio of zeros:
+
+```{r}
+
+# Subset data to the type of attack used in the model
+victim_counts <- table(combo.df[combo.df$type_of_attack == 3, ]$number_of_victims)
+
+# Extract the count of zeros
+num_zeros <- victim_counts["0"]
+
+# Calculate the total count of non-zero observations
+num_non_zeros <- sum(victim_counts) - num_zeros
+
+# Calculate the ratio of zeros to total observations
+ratio_zeros_non_zeros <- num_zeros / (num_zeros + num_non_zeros)
+
+# Display the results
+cat("Number of zero values:", num_zeros, "\n")
+cat("Number of non-zero values:", num_non_zeros, "\n")
+cat("Ratio of zeros to non-zeros:", ratio_zeros_non_zeros, "\n")
+
+```
+
+It looks like 56% of our observations are zeros.
+
+With `pscl` package's `zeroinfl()` function (developed by faculty at Stanford's Political Science Computational Laboratory) we can fit a zero-inflated poisson or negative binomial model. The upper half is the poisson or negative binomial portion, while the bottom is the logit component.
+
+There will be two sets of IVs in these models. The variables specified before the `|` will be those used to model the Poisson or Negative Binomial outcome. The variables specified after the `|` will be those used for the first-stage logit process, used to model excess zeros (zero-inflation).
+
+## Zero-inflation Poisson
+
+```{r, warning=FALSE}
+# Using zeroinfl function for zero-inflated regression model and negative binomial model
+zip1 <- zeroinfl(number_of_victims ~ number_of_perpetrators + scale(GDP) + 
+                   GDP_Growth + Trade_Perc_GDP + Mineral_Rents_Perc | number_of_perpetrators,
+                 data = combo.df[combo.df$type_of_attack == 3,], 
+                 dist = "poisson")
+
+summary(zip1)
+stargazer(zip1, type = "text")
+```
+
+## Zero-inflation negative-binomial
+
+For a zero-inflated negative binomial, we set `dist =` to "negbin". No theta specification required. Note that the stargazer output contains the first stage (logit) estimates. 
+
+```{r, warning=FALSE}
+
+zib1 <- zeroinfl(number_of_victims ~ number_of_perpetrators + scale(GDP) + GDP_Growth + 
+                      Trade_Perc_GDP + Mineral_Rents_Perc | number_of_perpetrators, 
+                 data = combo.df[combo.df$type_of_attack == 3,], 
+                 link = "logit", 
+                 dist = "negbin")
+
+summary(zib1)
+stargazer(zib1, type = "text")
+```
+## Full Comparison 
+
+Note, first stage estimates (logit) are output for zero-inflated models. 
+
+```{r, warning=FALSE}
+stargazer(p1, nb1, zip1, zib1, type = "text")
+```
+
+# Plotting Predicted Counts with `ggeffects`
+
+```{r}
+ggpredict(p1, terms = c("GDP")) %>% plot()
+
+ggpredict(p1, terms = c("number_of_perpetrators")) %>% plot()
+```
+
+We can look at the raw values across levels of the specified variable by removing `%>% plot`
+
+```{r}
+ggpredict(p1, terms = c("GDP")) 
+
+ggpredict(p1, terms = c("number_of_perpetrators")) 
+```
+Obviously, the negative values for both these variables are not meaningful. 
+
+By default, the other predictors are held at their mean or median values. We can specify certain levels as we have done with predicted probabilities and marginal effects. 
+
+```{r}
+ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]")) 
+
+ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]")) %>% plot
+
+```
+
