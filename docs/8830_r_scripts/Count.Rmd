@@ -146,7 +146,7 @@ Given that p-value is statistically significant, our model is likely overdispers
 In a Poisson model, overdispersion will bias SEs downward, leading to smaller p-values and a higher chance of spurious results and rejecting a true null hypothesis (type 1 error)\
 By accounting for overdispersion Negative Binomial models will result in higher SEs.
 
-To account for this overdispersion, we can estimate a negative binomial with the same function, specifying `negative.binomial` as the family. We have to set the `theta` (dispersion parameter) value. For moderate overdispersion, 1 is usually an appropriate value, and I noticed little change in estimates when I played around with the value. For higher overdispersion, higher values might be appropriate. There are also ways of estimating theta from the data, but this often leads to convergance issues. Setting it to a specified value makes it easier for the optimization algorithm to estimate coefficients.
+To account for this overdispersion, we can estimate a negative binomial with the same function, specifying `negative.binomial` as the family. We have to set the `theta` (dispersion parameter) value. For moderate overdispersion, 1 is usually an appropriate value, and I noticed little change in estimates when I played around with the value. For higher overdispersion, values closer to 0 might be more appropriate [from what I understand - verify this is applying]. There are also ways of estimating theta from the data, but this often leads to convergance issues. Setting it to a specified value makes it easier for the optimization algorithm to estimate coefficients.
 
 ```{r}
 nb1 <- glm(number_of_victims ~ number_of_perpetrators +  scale(GDP) + 
@@ -293,6 +293,7 @@ ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]"))
 ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]")) %>% plot
 
 ```
+
 
 
 
