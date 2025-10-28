@@ -160,8 +160,8 @@ stargazer(nb1, type = "text")
 
 ## Model Comparison
 
-```{r}
-stargazer(nb1, tmb_nb, type = "text")
+```{r, warning = FALSE}
+stargazer(p1, nb1, type = "text")
 ```
 
 In this case, significance levels are unaffected, but we can see that standard errors do inflate going from the Poisson to the Negative Binomial.
@@ -293,5 +293,6 @@ ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]"))
 ggpredict(p1, terms = c("GDP", "number_of_perpetrators [400]")) %>% plot
 
 ```
+
 
 
