@@ -1,0 +1,354 @@
+---
+title: "Nested Modeling"
+author: "Patrick Munger"
+date: "Fall 2025"
+output: html_document
+---
+
+# Agenda
+
+1.  Estimate standard OLS model
+2.  Test for heteroskedasticity
+3.  Estimate Group Fixed Effects
+4.  Estimate Random Effects
+5.  Cluster Standard Errors
+6.  Multilevel model
+
+# Preliminaries
+
+```{r}
+getwd()
+#seted()
+```
+
+
+Function to install needed packages (if not already uninstalled):
+
+```{r}
+required_pkgs <- c("tidyverse", "stargazer", "lmtest", "plm", "fixest", 
+                   "lme4", "lmtest", "sandwich")
+
+lapply(required_pkgs, function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
+  library(pkg, character.only = TRUE)
+})
+```
+
+```{r}
+library(tidyverse)
+library(lmtest)
+library(stargazer)
+library(plm)
+library(fixest)
+library(lme4)
+library(sandwich)
+library(lmtest)
+```
+
+## Data
+
+We'll be using World Values Survey (WVS) data from the latest wave (2017-2022), which contains survey responses in which individual respondents are observations clustered within subnational regions and countries.
+
+It's a big dataset so will take some time to load.
+
+```{r}
+load("WVS_Cross-National_Wave_7_Rdata_v6_0.Rdata")
+```
+
+# Data Cleaning
+
+There are 613 variables in the dataset, so let's trim it down to only the ones we will use - the unique interview id variable, country identifier, subnational region identifier, survey response on political violence, demographic variables, and several survey response covariants. We'll also rename the variables to something more intelligible, and we'll drop "don't know", "no answer", "not asked", "missing; not available" values.
+
+```{r}
+wvs_clean <- `WVS_Cross-National_Wave_7_v6_0` %>%
+  dplyr::select(D_INTERVIEW, B_COUNTRY_ALPHA, N_REGION_WVS, Q195, Q207, Q230, Q232, Q234A, Q238, Q260, Q262, Q275, Q288, Q292L, Q292O) %>%
+  rename(
+    id = D_INTERVIEW,
+    country = B_COUNTRY_ALPHA,
+    subnat_region = N_REGION_WVS,
+    violence = Q195,
+    soc_media = Q207,
+    buy_elections = Q230,
+    genuine_choice = Q232,
+    have_voice = Q234A,
+    dem_importance = Q238,
+    sex = Q260,
+    age = Q262,
+    edu = Q275,
+    income = Q288,
+    gov_ignore_comm = Q292L,
+    gov_intentions = Q292O
+  ) %>%
+  filter(
+    !violence %in% c(-1, -2, -4, -5),
+    !soc_media %in% c(-1, -2, -4, -5),
+    !buy_elections %in% c(-1, -2, -4, -5),
+    !genuine_choice %in% c(-1, -2, -4, -5),
+    !have_voice %in% c(-1, -2, -4, -5),
+    !dem_importance %in% c(-1, -2, -4, -5),
+    !age %in% c(-1, -2, -4, -5),
+    !sex %in% c(-1, -2, -4, -5),
+    !edu %in% c(-1, -2, -4, -5),
+    !income %in% c(-1, -2, -4, -5),
+    !gov_ignore_comm %in% c(-1, -2, -4, -5),
+    !gov_intentions %in% c(-1, -2, -4, -5),
+  )
+  
+```
+
+# Model Setup
+
+-   Dependent Variable (`violence`)
+    -   Our DV will be a survey response asking respondents the following about political violence: *Please tell me for each of the following statements whether you think it can always be justified, never be justified, or something in between, using this card*
+    -   Answers are on a 1-10 scale, with one indicated political violence is "never justified" and 10 indicating it is "always justified"
+-   Independent Variables (for simplicity, we will treat ordered categories as numeric)
+    -   Demographic variables:
+        -   `age` : respondent age (numeric)
+        -   `sex` : respondent sex (binary - 1 : male, 2 : female)
+        -   `edu` : respondent education level (0-8 ordered categories, no to high education)
+        -   `income` : respondent income scale (1-10 ordered categories, low to high income)
+    -   Survey Responses
+        -   `soc_media` : respondent's reported social media use
+            -   1 - Daily, 2 - Weekly, 3 - Monthly, 4 - Less than monthly, 5 - Never
+        -   `buy_elections` : how often respondent believes rich people buy elections
+            -   1 - Very often, 2 - Fairly often, 3 - Not often, 4 - Not at all often
+        -   `genuine_choice` : how often respondent believes voters are offered a genuine
+            -   1 - Very often, 2 - Fairly often, 3 - Not often, 4 - Not at all often
+        -   `dem_importance` : how good respondent believes a democratic system is for their country
+            -   1 - Very good, 2 - Fairly good, 3 - Fairly bad, 4 - Very bad
+        -   `have voice` : how much the respondent believes political system allows people to have a say
+            -   1 - A great deal, 2 - A lot, 3 - Some, 4 - Very little, 5 - Not at all
+        -   `gov_ignore_comm` : respondent's agreement that politicians often ignore their community
+            -   5 - Agree strongly, 4 - Agree, 3 - Neither agree nor disagree, 2 - Disagree, 1 - Disagree strongly
+        -   `gov_intentions` : respondent's agreement that the government usually has good intentions
+            -   5 - Agree strongly, 4 - Agree, 3 - Neither agree nor disagree, 2 - Disagree, 1 - Disagree strongly
+-   Nested Structures
+    -   `subnat_region` : country specific identifiers for respondent's subnational region (region names for each country and corresponding codes in codebook)
+    -   `country` : respondent's country abbreviation. 
+
+# Estimate Initial Model
+
+Since our DV is a ten category likert scale, in practice, we might want to estimate this with an ordered logit model, as is often the case with a likert scale. But for our purposes, we will use OLS. Since there are 10 categories and we can presume that respondents would interpret the scale as representing a continuous spectrum with equal distance between discrete cutpoints, an ologit might essentially converge to OLS anyways.
+
+## OLS model without accounting for nesting
+
+```{r}
+mod1 <- lm(violence ~ sex + age + edu + income + soc_media + buy_elections + genuine_choice + have_voice + dem_importance + gov_ignore_comm + gov_intentions, data = wvs_clean)
+
+summary(mod1)
+```
+
+# Heteroskedasticity
+
+The null hypothesis of the Breusch-Pagan test is that the residuals are homoskedastic (constant variance). So a p-value over 0.05 (p\>0.05) means we fail to reject the null and do not find significant concern for heteroskedasticity. If the p-value is under 0.05 (p\<0.05), we reject the null, raising concern for heteroskedasticity.
+
+```{r BP test}
+# Perform Breusch-Pagan test
+bptest(mod1)
+```
+
+We have a highly significant p-value here , meaning we have some serious heteroskedasticity. This could be due to residual clustering that could be addressed by somehow accounting for or directly modeling geographic groupings in our observations.
+
+# Fixed Effects
+
+Group fixed effects account for unobserved heterogeneity by including a dummy variable for each group. Let's include fixed effects for our country variable. This will include a dummy variable for k - 1 countries in our model.
+
+We can check how many countries are represented in the data after cleaning:
+
+```{r}
+nlevels(factor(wvs_clean$country))
+```
+
+There a a few different ways to model fixed effects in R:
+
+## Factoring the country variable
+
+The easiest way is to simply include the grouping variable in our model and factor it out with `factor()`:
+
+```{r}
+mod_fe1 <- lm(violence ~ sex + age + edu + income + soc_media + buy_elections +
+           genuine_choice + have_voice + dem_importance + gov_ignore_comm +
+           gov_intentions + factor(country), data = wvs_clean)
+
+summary(mod_fe1)
+```
+
+In this case we will see estimates for k - 1 countries.
+
+There are couple other options for group fixed effects. The functions used below do not directly support non-linear models, so if you are using `glm`, `plor`, `multinom`, etc. the above might be the best way to estimate fixed effects. You can of course remove the estimated for the dummies in the stargazer latex code.
+
+One function that is good with ols is `feols()` from the `fixest` package. This is a new package (2025) that has superseded `felm` from the now archived `lfe` package. With `feols()` we put the cluster variable after a `|` following our predictors. 
+
+```{r}
+mod_fe2 <- feols(violence ~ sex + age + edu + income + soc_media + buy_elections 
+                 + genuine_choice + have_voice +dem_importance + gov_ignore_comm 
+                 + gov_intentions | country, data = wvs_clean)
+
+summary(mod_fe2)
+```
+
+Note: I have not been able to get feols objects to cooperate with stargazer. 
+
+Another way to estimate fixed effects for OLS is with the `plm()` function from the `plm` package. Here we include an `index =` argument in which we specify our group variable and a `model =` argument in which we specify `"within`" to tell plm to use the fixed effects estimator for our index variable. This will also include a dummy variable for N - 1 countries, but the coefficients for these dummies are excluded from the summarized results. The estimates and standard errors for all of the orginial covariants should be exactly the same as the model that used `factor()` within the `lm()` function.
+
+```{r}
+mod_fe3 <- plm(violence ~ sex + age + edu + income + soc_media + buy_elections +
+            genuine_choice + have_voice + dem_importance + gov_ignore_comm +
+            gov_intentions, 
+            data = wvs_clean, 
+            index = "country", 
+            model = "within")
+
+summary(mod_fe3)
+```
+
+Let's try a model with `subnat_region` fixed effects rather than `country`.
+
+First let's see how many subnational regions are represented:
+
+```{r}
+nlevels(factor(wvs_clean$subnat_region))
+```
+
+Fit model with subnational region fixed effects:
+
+```{r}
+mod_fe4 <- feols(violence ~ sex + age + edu + income + soc_media + buy_elections +
+             genuine_choice + have_voice + dem_importance + gov_ignore_comm +
+             gov_intentions | subnat_region, data = wvs_clean)
+
+summary(mod_fe4)
+```
+
+With `feols()` we can estimate fixed effects for multiple grouping structures. Here we can do it for `subnat_region` and `country`, although this does not make a lot of sense as one is strictly nested in the other. This is likely why we get the same results as when we just model `subnat_region` fixed effects. Multiple fixed effects makes more sense if we include a geography and then some other grouping variable, say yearly fixed effects. Including multiple fixed effects can lead to model overspecification and multicollinearity, however.
+
+```{r}
+mod_fe5 <- feols(violence ~ sex + age + edu + income + soc_media + buy_elections +
+             genuine_choice + have_voice + dem_importance + gov_ignore_comm +
+             gov_intentions | country + subnat_region, data = wvs_clean)
+
+summary(mod_fe5)
+```
+
+Let's look at the model without fixed effects, the one with country fixed effects, and the one with subnational region fixed effects side-by-side.
+
+```{r}
+stargazer(mod1, mod_fe3, mod_fe4, type = "text")
+```
+
+# Random Effects
+
+To estimate a random intercept model where the intercepts are allowed to vary across groups, we can use `lmer()` from `lme4`.  The random components of the model use the `(random_effects | group_variable)` syntax. To vary intercepts by country we specify `(1 | country)`. The `1` signifies the constant or intercept term we want to vary by. 
+```{r, warning=FALSE}
+mod_re1 <- lmer(violence ~ sex + age + edu + income + soc_media + buy_elections 
+                + genuine_choice + have_voice + dem_importance + gov_ignore_comm 
+                + gov_intentions + (1 | country), data = wvs_clean)
+
+summary(mod_re1)
+stargazer(mod_re1, type = "text")
+```
+
+In the output, we see a variance and standard deviation for the country random intercept effects.
+
+The summary also includes a "Correlation of Fixed Effects" table which shows how out coefficients are correlated.
+
+## glmer
+
+We can use the `glmer` function from the `lme4` package to estimate random effects for a glm, specifying our distribution in the `family =` argument. We include our group variable in the model with `(1 | variable)`.
+
+Here I estimate old with `family = gaussian` since we have a numeric DV, but this can be set to `binomial`, `poisson`, etc distribution.
+
+```{r}
+mod_re2 <- glmer(violence ~ sex + age + edu + income + soc_media + buy_elections +
+              genuine_choice + have_voice + dem_importance + gov_ignore_comm +
+              gov_intentions + (1 | country), 
+              data = wvs_clean, 
+              family = gaussian)
+
+summary(mod_re2)
+```
+
+Typically, we estimate fixed effects when we suspect that unobserved characteristics within groups are correlated with predictors and their effects on the outcome. We estimate random effects if we want to estimate both within and between group effects but do not believe the groupings are correlated with our predictors.
+
+To determine if fixed or random effects are more appropriate, we can run a Hausman test where the null hypothesis is that the preferred model is random effects and the alternative is that it is fixed effects.
+
+<https://libguides.princeton.edu/R-Panel>
+
+There is some incomptabilities with `phtest()` and certain model functions. I got it to work with the FE estimated with `plm()` and RE estimated with `glmer()` (gaussian). 
+
+```{r}
+phtest(mod_fe3, mod_re2)
+```
+
+The significant p-value suggests fixed effects.
+
+# Clustered Standard Errors
+
+We can use the `lmtest` and `sandwich` packages to compute clustered standard errors after fitting our model.
+
+```{r}
+clustered_se <- coeftest(mod1, vcov = vcovCL(mod1, cluster = ~country))
+print(clustered_se)
+
+```
+
+We can also use the `feols()` which can perform built-in clustering with the `cluster = ~ variable` argument. 
+
+```{r}
+mod_cluster <- feols(violence ~ sex + age + edu + income + soc_media + 
+                           buy_elections + genuine_choice + have_voice + 
+                           dem_importance + gov_ignore_comm + gov_intentions,
+                         data = wvs_clean, cluster = ~ country)
+summary(mod_cluster)
+```
+
+# Multilevel (mixed effects) model
+
+A multilevel or mixed effects model contains both fixed and random effects. In addition to the varying intercepts model we estimated earlier, we can also vary slopes by group for certain predictors if we suspect that their effects on the outcome are differentiated across groups.
+
+We can use the `lmer()` function from the `lme4` package (and the `glmer()` function for non-linear models, as shown in the random intercepts model).
+
+The random components of the model use the `(random_effects | group_variable)` syntax, so if we want random intercepts by country, on the left side we will put `1` , and on the right side `country`. To vary slopes by a predictor, let's say social media use (`soc_media`), we include that variable after a `+` on the left side: `(1 + soc_media | country)`. The full specification is as follows:
+
+```{r, warning=FALSE}
+# Mixed effects model with random intercepts and random slopes
+mod_me <- lmer(violence ~ sex + age + edu + income + soc_media + buy_elections +
+             genuine_choice + have_voice + dem_importance + gov_ignore_comm +
+             gov_intentions + (1 + soc_media | country), data = wvs_clean)
+
+summary(mod_me)
+```
+
+Here the fixed effects results are just the fixed (non-varying) coefficients for our predictors. The random effects tell us the variance and standard deviation of the varying intercepts and slopes.
+
+The random intercept variance of `1.55652` tells us that that countries vary rather substantially in their baseline political violence justification responses. This is the standard deviation tells us that each country's baseline level of `violence` deviates, on average, by `1.2476` from the global average intercept.
+
+The random slope variance of `0.01421` tells us that the effects of social media use on justifying political violence does vary somewhat by country. The standard deviation tells that, on average, the effect of `soc_media` on `violence` for each country deviates, on average, by `0.1192` from the global average effect (3.5513).
+
+The correlation between the random intercept and slope tells us that countries with higher baseline levels of `violence` experience slightly stronger positive effects of `soc_media` on `violence.`
+
+We can visualize the country random slopes with the `sloped()` function from `marginaleffects`:
+
+```{r}
+re <- ranef(mod_me, condVar = TRUE)
+slopes <- re$country %>% rownames_to_column("country") %>%
+as_tibble() %>% rename(intercept = `(Intercept)`, slope_soc = soc_media)
+
+
+slopes %>%
+ggplot(aes(x = reorder(country, slope_soc), y = slope_soc)) +
+geom_point() +
+coord_flip() +
+labs(x = NULL, y = "Random slope for social media",
+title = "Country-specific effects of social media on violence justification") +
+theme_minimal(base_size = 12)
+```
+
+
+# Model Summaries
+
+Let's compare the original model, country fixed effects, country random effects, and mixed effects model with random intercepts and slopes.
+
+```{r}
+stargazer(mod1, mod_fe2, mod_re1, mod_me, type = "text")
+```
