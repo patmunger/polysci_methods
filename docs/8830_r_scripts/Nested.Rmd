@@ -236,7 +236,23 @@ Let's look at the model without fixed effects, the one with country fixed effect
 stargazer(mod1, mod_fe3, mod_fe4, type = "text")
 ```
 
-# Random Effects
+
+# Random Effects Anova 
+
+Estimate null model with random intercept components for country and subnational region. 
+
+```{r}
+# 3-level null model: individual, within subnat_region, within country
+mod_null <- lmer(
+  violence ~ 1 + (1 | country/subnat_region),
+  data = wvs_clean
+)
+summary(mod_null)
+
+```
+
+
+# Random Effects Model
 
 To estimate a random intercept model where the intercepts are allowed to vary across groups, we can use `lmer()` from `lme4`.  The random components of the model use the `(random_effects | group_variable)` syntax. To vary intercepts by country we specify `(1 | country)`. The `1` signifies the constant or intercept term we want to vary by. 
 ```{r, warning=FALSE}
@@ -302,6 +318,42 @@ mod_cluster <- feols(violence ~ sex + age + edu + income + soc_media +
 summary(mod_cluster)
 ```
 
+# Random Effects ANOVA
+
+```{r}
+mod_intercept <- lmer(violence ~ sex + age + edu + income + soc_media +
+                        buy_elections + genuine_choice + have_voice +
+                        dem_importance + gov_ignore_comm + gov_intentions +
+                        (1 | country), data = wvs_clean)
+
+mod_slope <- lmer(violence ~ sex + age + edu + income + soc_media +
+                    buy_elections + genuine_choice + have_voice +
+                    dem_importance + gov_ignore_comm + gov_intentions +
+                    (1 + soc_media | country), data = wvs_clean)
+
+anova(mod_intercept, mod_slope)
+
+```
+
+
+
+```{r}
+# Extract variance components
+vc <- as.data.frame(VarCorr(mod_null_3lvl))
+names(vc$vcov) <- vc$grp
+
+icc_country <- vc$vcov["country"] / sum(vc$vcov)
+icc_region  <- vc$vcov["country:subnat_region"] / sum(vc$vcov)
+icc_indiv   <- vc$vcov["Residual"] / sum(vc$vcov)
+
+icc_country
+icc_region
+icc_indiv
+
+```
+
+
+
 # Multilevel (mixed effects) model
 
 A multilevel or mixed effects model contains both fixed and random effects. In addition to the varying intercepts model we estimated earlier, we can also vary slopes by group for certain predictors if we suspect that their effects on the outcome are differentiated across groups.
@@ -352,3 +404,4 @@ Let's compare the original model, country fixed effects, country random effects,
 ```{r}
 stargazer(mod1, mod_fe2, mod_re1, mod_me, type = "text")
 ```
+
